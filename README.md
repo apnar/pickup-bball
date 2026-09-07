@@ -79,7 +79,13 @@ One-time setup:
 5. Deploy: `pnpm run deploy`.
 6. Set `BETTER_AUTH_URL` in `apps/web/wrangler.jsonc` `vars` to the URL wrangler printed (or your custom domain) and deploy again.
 
-After that, either run `pnpm run deploy` from your machine, or connect the repo to Cloudflare Workers Builds so every push to `main` deploys. For Workers Builds use root directory `/`, build command `pnpm run build`, and deploy command `pnpm run db:migrate:remote && pnpm --filter web exec wrangler deploy`.
+### Automatic deploys
+
+`.github/workflows/deploy.yml` runs on every push and pull request. It lints with Biome, typechecks and builds. On pushes to `main` it then applies pending D1 migrations and deploys the Worker with Cloudflare's `wrangler-action`.
+
+It needs one repository secret, `CLOUDFLARE_API_TOKEN`: a Cloudflare API token created from the "Edit Cloudflare Workers" template with **D1: Edit** added. Set it with `gh secret set CLOUDFLARE_API_TOKEN` or in the repository's Actions secrets. Until the secret exists the deploy job skips with a warning instead of failing. The account id is in `apps/web/wrangler.jsonc`, so no account secret is needed.
+
+You can still deploy by hand with `pnpm run deploy`.
 
 ## Project Structure
 

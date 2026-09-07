@@ -1,6 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "pickup-bball",
+	"account_id": "b38725df47a7614f19cefb7a2b466711",
 	"main": "@tanstack/react-start/server-entry",
 	"compatibility_date": "2026-09-01",
 	"compatibility_flags": ["nodejs_compat"],
