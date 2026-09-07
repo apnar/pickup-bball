@@ -2,18 +2,25 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "pickup-bball",
 	"account_id": "b38725df47a7614f19cefb7a2b466711",
-	"main": "@tanstack/react-start/server-entry",
+	"main": "./src/server.ts",
 	"compatibility_date": "2026-09-01",
 	"compatibility_flags": ["nodejs_compat"],
 	"workers_dev": true,
 	"preview_urls": false,
+	// Custom domains on the moco-pickup.com zone. Wrangler creates the DNS
+	// records and certificates on deploy. The Worker redirects every other
+	// host (www, workers.dev) to BETTER_AUTH_URL; see src/server.ts.
+	"routes": [
+		{ "pattern": "moco-pickup.com", "custom_domain": true },
+		{ "pattern": "www.moco-pickup.com", "custom_domain": true }
+	],
 	"observability": {
 		"enabled": true
 	},
 	"vars": {
-		// Public origin of the deployed Worker. Update after the first deploy,
-		// e.g. https://pickup-bball.<your-subdomain>.workers.dev or your custom domain.
-		"BETTER_AUTH_URL": "https://pickup-bball.jlukens.workers.dev"
+		// Canonical public origin of the site. Better Auth uses it for cookies
+		// and callbacks, and src/server.ts redirects other hosts to it.
+		"BETTER_AUTH_URL": "https://moco-pickup.com"
 	},
 	"r2_buckets": [
 		{
