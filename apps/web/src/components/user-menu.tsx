@@ -1,3 +1,4 @@
+import { isAdmin } from "@pickup-bball/api/run";
 import { Button } from "@pickup-bball/ui/components/button";
 import {
 	DropdownMenu,
@@ -32,39 +33,58 @@ export default function UserMenu() {
 		);
 	}
 
+	const admin = isAdmin(session.user);
+
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-				{session.user.name}
-			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end">
-				<DropdownMenuGroup>
-					<DropdownMenuLabel>My account</DropdownMenuLabel>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-					<DropdownMenuItem
-						render={<Link to="/dashboard" className="no-underline" />}
-					>
-						Dashboard
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						variant="destructive"
-						onClick={() => {
-							authClient.signOut({
-								fetchOptions: {
-									onSuccess: () => {
-										navigate({
-											to: "/",
-										});
+		<>
+			{admin ? (
+				<Link
+					to="/admin"
+					className="text-ink text-sm no-underline hover:text-steel-700 aria-[current=page]:text-steel-700"
+				>
+					Admin
+				</Link>
+			) : null}
+			<DropdownMenu>
+				<DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+					{session.user.name}
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuGroup>
+						<DropdownMenuLabel>My account</DropdownMenuLabel>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
+						<DropdownMenuItem
+							render={<Link to="/dashboard" className="no-underline" />}
+						>
+							Dashboard
+						</DropdownMenuItem>
+						{admin ? (
+							<DropdownMenuItem
+								render={<Link to="/admin" className="no-underline" />}
+							>
+								Admin
+							</DropdownMenuItem>
+						) : null}
+						<DropdownMenuItem
+							variant="destructive"
+							onClick={() => {
+								authClient.signOut({
+									fetchOptions: {
+										onSuccess: () => {
+											navigate({
+												to: "/",
+											});
+										},
 									},
-								},
-							});
-						}}
-					>
-						Sign out
-					</DropdownMenuItem>
-				</DropdownMenuGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
+								});
+							}}
+						>
+							Sign out
+						</DropdownMenuItem>
+					</DropdownMenuGroup>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</>
 	);
 }

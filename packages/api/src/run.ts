@@ -5,46 +5,48 @@
 /** How many players the run can take before someone sits. */
 export const CAPACITY = 10;
 
-/** The gym's timezone. The week rolls over at midnight here, after Monday. */
+/** The gym's timezone. Game dates are calendar days here. */
 export const RUN_TIMEZONE = "America/New_York";
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-/**
- * The Monday this headcount is for, as YYYY-MM-DD. On a Monday it is that
- * day (the run has not happened yet, or is happening); from Tuesday on it is
- * the coming Monday.
- */
-export function currentWeekOf(now: Date = new Date()): string {
-	const parts = new Intl.DateTimeFormat("en-US", {
+/** Today's date in the gym's timezone as YYYY-MM-DD. */
+export function todayInRunTimezone(now: Date = new Date()): string {
+	const parts = new Intl.DateTimeFormat("en-CA", {
 		timeZone: RUN_TIMEZONE,
 		year: "numeric",
 		month: "2-digit",
 		day: "2-digit",
-		weekday: "short",
 	}).formatToParts(now);
 	const get = (type: Intl.DateTimeFormatPartTypes) =>
 		parts.find((p) => p.type === type)?.value ?? "";
-	const year = Number(get("year"));
-	const month = Number(get("month"));
-	const day = Number(get("day"));
-	const weekday = WEEKDAYS.indexOf(get("weekday"));
-	const daysUntilMonday = (8 - weekday) % 7;
-	const monday = new Date(Date.UTC(year, month - 1, day + daysUntilMonday));
-	return monday.toISOString().slice(0, 10);
+	return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
-/** "Mon, Sep 14" for a YYYY-MM-DD week key. */
-export function formatWeekOf(weekOf: string): string {
+/** "Mon, Sep 14" for a YYYY-MM-DD date. */
+export function formatGameDate(date: string): string {
 	return new Intl.DateTimeFormat("en-US", {
 		timeZone: "UTC",
 		weekday: "short",
 		month: "short",
 		day: "numeric",
-	}).format(new Date(`${weekOf}T12:00:00Z`));
+	}).format(new Date(`${date}T12:00:00Z`));
+}
+
+/** "7:00 PM" for an HH:MM 24-hour time. */
+export function formatGameTime(time: string): string {
+	const [h = 0, m = 0] = time.split(":").map(Number);
+	const suffix = h >= 12 ? "PM" : "AM";
+	const hour12 = h % 12 === 0 ? 12 : h % 12;
+	return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
 /** Normalises a typed name for the uniqueness key. */
 export function nameKeyOf(name: string): string {
 	return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Whether a session user may manage games, permits and roles. */
+export function isAdmin(
+	user: { role?: string | null } | null | undefined,
+): boolean {
+	return user?.role === "admin";
 }

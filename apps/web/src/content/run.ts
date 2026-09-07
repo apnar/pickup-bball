@@ -4,6 +4,12 @@
 
 export const SITE_NAME = "Sean's Monday Night Run";
 
+/** Prefilled court when an admin books a game. */
+export const DEFAULT_LOCATION = "Rec Center, Ct. 2";
+
+/** Prefilled tip-off time (24-hour) when an admin books a game. */
+export const DEFAULT_START_TIME = "19:00";
+
 export const conditions = [
 	{
 		num: "01",

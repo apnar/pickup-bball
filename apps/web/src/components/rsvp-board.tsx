@@ -1,6 +1,7 @@
-import { Corners } from "@pickup-bball/ui/components/blueprint";
-import { Button } from "@pickup-bball/ui/components/button";
+import { Blueprint, Corners } from "@pickup-bball/ui/components/blueprint";
+import { Button, buttonVariants } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import SectionKicker from "@/components/section-kicker";
@@ -27,18 +28,74 @@ export default function RsvpBoard() {
 	const { headcount, isPending, add, toggle } = useRsvps();
 	const [draft, setDraft] = useState("");
 
-	const rsvps = headcount?.rsvps ?? [];
-	const capacity = headcount?.capacity ?? 10;
+	if (!headcount) {
+		return (
+			<section id="rsvp" className="scroll-mt-6 py-12 pb-15">
+				<SectionKicker>02 · Next game</SectionKicker>
+				<Blueprint className="flex min-h-40 flex-col items-center justify-center gap-3 p-8 text-center">
+					<h2 className="font-heading text-[32px] uppercase leading-9 tracking-[0.02em]">
+						No gym booked yet.
+					</h2>
+					<p className="max-w-[48ch] text-[15px] text-neutral-700 leading-6">
+						When a permit lands, the headcount opens here. Until then, the group
+						chat is the gym.
+					</p>
+					<Link
+						to="/schedule"
+						className={buttonVariants({
+							variant: "ghost",
+							className: "no-underline",
+						})}
+					>
+						See the schedule
+					</Link>
+				</Blueprint>
+			</section>
+		);
+	}
+
+	const { game, capacity, rsvps } = headcount;
 	const inCount = rsvps.filter((r) => r.isIn).length;
 	const open = capacity - inCount;
 	const fillPct = Math.min(100, Math.round((inCount / capacity) * 100));
 
 	return (
 		<section id="rsvp" className="scroll-mt-6 py-12 pb-15">
-			<SectionKicker>
-				02 · This week's headcount
-				{headcount ? ` · ${headcount.weekLabel}` : ""}
+			<SectionKicker className="mb-6">
+				02 · Next game · {game.dateLabel}
 			</SectionKicker>
+			<div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3">
+				<span className="font-heading font-semibold text-[32px] uppercase leading-9 tracking-[0.02em]">
+					{game.dateLabel}
+				</span>
+				<span className="font-heading font-semibold text-[22px] leading-6 tracking-[0.02em]">
+					{game.timeLabel}
+				</span>
+				<span className="text-[15px] text-neutral-700 leading-6">
+					{game.location}
+				</span>
+				{game.permit ? (
+					<a
+						href={`/api/permits/${game.permit.id}/file`}
+						target="_blank"
+						rel="noreferrer"
+						className={buttonVariants({
+							variant: "outline",
+							size: "sm",
+							className: "no-underline",
+						})}
+					>
+						Permit (PDF)
+					</a>
+				) : (
+					<span className="kicker text-neutral-600">No permit attached</span>
+				)}
+			</div>
+			{game.notes ? (
+				<p className="-mt-4 mb-8 max-w-[60ch] text-[15px] text-neutral-700 leading-6">
+					{game.notes}
+				</p>
+			) : null}
 			<div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-x-[clamp(24px,5vw,96px)]">
 				<div>
 					<h2 className="font-heading text-[32px] uppercase leading-9 tracking-[0.02em]">
@@ -84,7 +141,7 @@ export default function RsvpBoard() {
 						</Button>
 					</form>
 					<p className="mt-2 text-[13px] text-neutral-700 leading-5">
-						Tap a name to flip it. Flipping to Out after 5 PM Monday is public
+						Tap a name to flip it. Flipping to Out the day of the game is public
 						record.
 					</p>
 				</div>

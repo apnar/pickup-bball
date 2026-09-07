@@ -1,6 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
 
 import type { Context } from "./context";
+import { isAdmin } from "./run";
 
 export const o = os.$context<Context>();
 
@@ -18,3 +19,21 @@ const requireAuth = o.middleware(async ({ context, next }) => {
 });
 
 export const protectedProcedure = publicProcedure.use(requireAuth);
+
+const requireAdmin = o.middleware(async ({ context, next }) => {
+	if (!context.session?.user) {
+		throw new ORPCError("UNAUTHORIZED");
+	}
+	if (!isAdmin(context.session.user)) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Admins only. Ask Sean.",
+		});
+	}
+	return next({
+		context: {
+			session: context.session,
+		},
+	});
+});
+
+export const adminProcedure = publicProcedure.use(requireAdmin);

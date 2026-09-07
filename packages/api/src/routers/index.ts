@@ -1,6 +1,8 @@
 import type { RouterClient } from "@orpc/server";
 
 import { protectedProcedure, publicProcedure } from "../index";
+import { gamesRouter } from "./games";
+import { permitsRouter } from "./permits";
 import { rsvpRouter } from "./rsvp";
 
 export const appRouter = {
@@ -13,6 +15,8 @@ export const appRouter = {
 			user: context.session?.user,
 		};
 	}),
+	games: gamesRouter,
+	permits: permitsRouter,
 	rsvp: rsvpRouter,
 };
 export type AppRouter = typeof appRouter;

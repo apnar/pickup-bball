@@ -114,6 +114,9 @@ importers:
       '@pickup-bball/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@pickup-bball/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@pickup-bball/env':
         specifier: workspace:*
         version: link:../../packages/env
@@ -141,6 +144,9 @@ importers:
       better-auth:
         specifier: 'catalog:'
         version: 1.7.1(@cloudflare/workers-types@5.20260907.1)(@tanstack/react-start@1.168.50(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.2.7)(vite@8.2.2(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)))(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260907.1)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0))(pg@8.23.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@cloudflare/workers-types@5.20260907.1)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)
       hono:
         specifier: 'catalog:'
         version: 4.13.7

@@ -21,6 +21,9 @@ export default function Header() {
 				<Link to="/" activeOptions={{ exact: true }} className={linkClass}>
 					This week
 				</Link>
+				<Link to="/schedule" className={linkClass}>
+					Schedule
+				</Link>
 				<Link to="/roster" className={linkClass}>
 					Roster
 				</Link>

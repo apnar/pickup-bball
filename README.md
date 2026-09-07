@@ -56,9 +56,22 @@ pnpm run dev
 
 Open [http://localhost:3001](http://localhost:3001).
 
-## Headcount data
+## Games, permits and admins
 
-The "This week's headcount" board is shared: names live in the `rsvp` table in D1, one row per name per week. Each row carries the ISO date of its Monday (`week_of`), computed in the gym's timezone (`RUN_TIMEZONE` in `packages/api/src/run.ts`), so the board starts empty every Tuesday and past weeks stay as history. Anyone can add a name or flip it In/Out; no sign-in is required, matching the design. The oRPC procedures are `rsvp.list`, `rsvp.add`, and `rsvp.toggle` in `packages/api/src/routers/rsvp.ts`. Roster, rules and game conditions are plain content in `apps/web/src/content/run.ts`.
+A game exists only once a gym has been rented. Admins book games and file the permit PDFs; everyone else sees the schedule and the next game's headcount.
+
+- **Admins** are accounts with `role = 'admin'` (Better Auth's admin plugin). Promote the first one with a SQL command, then use the Users tab on `/admin` to promote others:
+
+```bash
+pnpm --filter web exec wrangler d1 execute DB --remote --command "update user set role='admin' where email='you@example.com'"
+```
+
+  Drop `--remote` to do the same against the local database.
+- **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games.
+- **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
+- **Headcount** rows in `rsvp` belong to a game (`game_id`). Anyone can add a name or flip it In/Out for the next game; no sign-in is required. Deleting a game deletes its headcount.
+
+The oRPC procedures are `games.*`, `permits.*` and `rsvp.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
 
 ## Database changes
 
@@ -75,15 +88,17 @@ One-time setup:
 1. Log in: `pnpm --filter web exec wrangler login`.
 2. Create the database: `pnpm --filter web exec wrangler d1 create pickup-bball-db` and paste the returned id into `database_id` in `apps/web/wrangler.jsonc`.
 3. Set the auth secret: `pnpm --filter web exec wrangler secret put BETTER_AUTH_SECRET`.
-4. Apply migrations to production: `pnpm run db:migrate:remote`.
-5. Deploy: `pnpm run deploy`.
-6. Set `BETTER_AUTH_URL` in `apps/web/wrangler.jsonc` `vars` to the URL wrangler printed (or your custom domain) and deploy again.
+4. Create the permit bucket: `pnpm --filter web exec wrangler r2 bucket create pickup-bball-permits`.
+5. Apply migrations to production: `pnpm run db:migrate:remote`.
+6. Deploy: `pnpm run deploy`.
+7. Set `BETTER_AUTH_URL` in `apps/web/wrangler.jsonc` `vars` to the URL wrangler printed (or your custom domain) and deploy again.
+8. Sign up on the site, then promote yourself to admin with the command in "Games, permits and admins".
 
 ### Automatic deploys
 
 `.github/workflows/deploy.yml` runs on every push and pull request. It lints with Biome, typechecks and builds. On pushes to `main` it then applies pending D1 migrations and deploys the Worker with Cloudflare's `wrangler-action`.
 
-It needs one repository secret, `CLOUDFLARE_API_TOKEN`: a Cloudflare API token created from the "Edit Cloudflare Workers" template with **D1: Edit** added. Set it with `gh secret set CLOUDFLARE_API_TOKEN` or in the repository's Actions secrets. Until the secret exists the deploy job skips with a warning instead of failing. The account id is in `apps/web/wrangler.jsonc`, so no account secret is needed.
+It needs one repository secret, `CLOUDFLARE_API_TOKEN`: a Cloudflare API token created from the "Edit Cloudflare Workers" template with **D1: Edit** and **Workers R2 Storage: Edit** added. Set it with `gh secret set CLOUDFLARE_API_TOKEN` or in the repository's Actions secrets. Until the secret exists the deploy job skips with a warning instead of failing. The account id is in `apps/web/wrangler.jsonc`, so no account secret is needed.
 
 You can still deploy by hand with `pnpm run deploy`.
 
@@ -97,7 +112,7 @@ pickup-bball/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # oRPC router / business logic
 │   ├── auth/        # Better Auth configuration
-│   ├── db/          # Drizzle schema and D1 migrations
+│   ├── db/          # Drizzle schema (auth, game, permit, rsvp) and D1 migrations
 │   └── env/         # Typed access to Worker env and bindings
 ```
 

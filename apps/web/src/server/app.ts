@@ -6,6 +6,10 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { createContext } from "@pickup-bball/api/context";
 import { appRouter } from "@pickup-bball/api/routers/index";
 import { createAuth } from "@pickup-bball/auth";
+import { createDb } from "@pickup-bball/db";
+import { permit } from "@pickup-bball/db/schema/permit";
+import { env } from "@pickup-bball/env/server";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 
@@ -61,6 +65,38 @@ app.all("/reference/*", async (c, next) => {
 		return c.newResponse(result.response.body, result.response);
 	}
 	await next();
+});
+
+/**
+ * Streams a permit PDF from R2. Readable by anyone with the link, by design:
+ * the point is to show it to gym staff from whatever phone is handy.
+ * Add `?download=1` to get an attachment instead of an inline view.
+ */
+app.get("/permits/:id/file", async (c) => {
+	const row = await createDb()
+		.select({
+			r2Key: permit.r2Key,
+			fileName: permit.fileName,
+			contentType: permit.contentType,
+		})
+		.from(permit)
+		.where(eq(permit.id, c.req.param("id")))
+		.get();
+	if (!row) return c.text("No such permit.", 404);
+
+	const object = await env.PERMITS.get(row.r2Key);
+	if (!object) return c.text("Permit file is missing.", 404);
+
+	const disposition = c.req.query("download") ? "attachment" : "inline";
+	const safeName = row.fileName.replace(/[^\w.\- ]+/g, "_");
+	const headers = new Headers();
+	object.writeHttpMetadata(headers);
+	headers.set("content-type", row.contentType);
+	headers.set("content-length", String(object.size));
+	headers.set("etag", object.httpEtag);
+	headers.set("cache-control", "public, max-age=3600");
+	headers.set("content-disposition", `${disposition}; filename="${safeName}"`);
+	return new Response(object.body, { headers });
 });
 
 app.get("/health", (c) => c.text("OK"));

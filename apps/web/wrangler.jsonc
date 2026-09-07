@@ -15,6 +15,13 @@
 		// e.g. https://pickup-bball.<your-subdomain>.workers.dev or your custom domain.
 		"BETTER_AUTH_URL": "https://pickup-bball.jlukens.workers.dev"
 	},
+	"r2_buckets": [
+		{
+			"binding": "PERMITS",
+			// Create once per account: `pnpm exec wrangler r2 bucket create pickup-bball-permits`
+			"bucket_name": "pickup-bball-permits"
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",
