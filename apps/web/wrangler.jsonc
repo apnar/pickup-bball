@@ -1,0 +1,24 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "pickup-bball",
+	"main": "@tanstack/react-start/server-entry",
+	"compatibility_date": "2026-09-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		// Public origin of the deployed Worker. Update after the first deploy,
+		// e.g. https://pickup-bball.<your-subdomain>.workers.dev or your custom domain.
+		"BETTER_AUTH_URL": "https://pickup-bball.workers.dev"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "pickup-bball-db",
+			// Run `pnpm exec wrangler d1 create pickup-bball-db` from apps/web and paste the id here.
+			"database_id": "REPLACE_WITH_D1_DATABASE_ID",
+			"migrations_dir": "../../packages/db/src/migrations"
+		}
+	]
+}

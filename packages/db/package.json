@@ -1,0 +1,25 @@
+{
+	"name": "@pickup-bball/db",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"db:generate": "drizzle-kit generate"
+	},
+	"dependencies": {
+		"@pickup-bball/env": "workspace:*",
+		"drizzle-orm": "^0.45.2",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@pickup-bball/config": "workspace:*",
+		"drizzle-kit": "^0.31.10",
+		"typescript": "catalog:"
+	}
+}

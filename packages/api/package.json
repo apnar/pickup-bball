@@ -1,0 +1,28 @@
+{
+	"name": "@pickup-bball/api",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@orpc/client": "catalog:",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"@pickup-bball/auth": "workspace:*",
+		"@pickup-bball/db": "workspace:*",
+		"@pickup-bball/env": "workspace:*",
+		"drizzle-orm": "^0.45.2",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@pickup-bball/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

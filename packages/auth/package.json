@@ -1,0 +1,23 @@
+{
+	"name": "@pickup-bball/auth",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@pickup-bball/db": "workspace:*",
+		"@pickup-bball/env": "workspace:*",
+		"better-auth": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@pickup-bball/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

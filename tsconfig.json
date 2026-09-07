@@ -1,0 +1,3 @@
+{
+	"extends": "@pickup-bball/config/tsconfig.base.json"
+}
