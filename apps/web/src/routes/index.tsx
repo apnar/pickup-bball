@@ -19,7 +19,7 @@ function HomeComponent() {
 			<section className="pt-18 pb-12">
 				<PageTitle
 					size="hero"
-					line1="Monday. 7 PM."
+					line1="Monday. 9 PM."
 					line2="Show up or get talked about."
 				/>
 				<p className="mt-7 max-w-[60ch] text-base leading-6">

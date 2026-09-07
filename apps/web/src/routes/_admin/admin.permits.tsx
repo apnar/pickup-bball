@@ -78,7 +78,7 @@ function AdminPermitsPage() {
 							id="label"
 							required
 							maxLength={80}
-							placeholder="Rec Center, Sep 14 - 28"
+							placeholder="Shady Grove, Sep 14 - 28"
 							value={label}
 							onChange={(e) => setLabel(e.target.value)}
 						/>

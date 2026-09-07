@@ -31,7 +31,7 @@ export function formatGameDate(date: string): string {
 	}).format(new Date(`${date}T12:00:00Z`));
 }
 
-/** "7:00 PM" for an HH:MM 24-hour time. */
+/** "9:00 PM" for an HH:MM 24-hour time. */
 export function formatGameTime(time: string): string {
 	const [h = 0, m = 0] = time.split(":").map(Number);
 	const suffix = h >= 12 ? "PM" : "AM";

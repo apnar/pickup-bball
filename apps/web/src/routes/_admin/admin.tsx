@@ -7,7 +7,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { DEFAULT_LOCATION, DEFAULT_START_TIME } from "@/content/run";
+import {
+	DEFAULT_END_TIME,
+	DEFAULT_LOCATION,
+	DEFAULT_START_TIME,
+} from "@/content/run";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_admin/admin")({
@@ -29,7 +33,7 @@ type FormState = {
 const emptyForm: FormState = {
 	date: "",
 	startTime: DEFAULT_START_TIME,
-	endTime: "",
+	endTime: DEFAULT_END_TIME,
 	location: DEFAULT_LOCATION,
 	notes: "",
 	permitId: "",

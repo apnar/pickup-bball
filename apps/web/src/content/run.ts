@@ -5,10 +5,13 @@
 export const SITE_NAME = "Sean's Monday Night Run";
 
 /** Prefilled court when an admin books a game. */
-export const DEFAULT_LOCATION = "Rec Center, Ct. 2";
+export const DEFAULT_LOCATION = "Shady Grove Middle School";
 
 /** Prefilled tip-off time (24-hour) when an admin books a game. */
-export const DEFAULT_START_TIME = "19:00";
+export const DEFAULT_START_TIME = "21:00";
+
+/** Prefilled end time (24-hour) when an admin books a game. */
+export const DEFAULT_END_TIME = "22:30";
 
 export const conditions = [
 	{
@@ -20,20 +23,20 @@ export const conditions = [
 	{
 		num: "02",
 		prop: "Tip-off",
-		val: "7:00 PM",
-		rem: '"Sharp." Layup lines start at 7:15 when Dev arrives.',
+		val: "9:00 - 10:30 PM",
+		rem: '"Sharp." Layup lines start at 9:15 when Dev arrives.',
 	},
 	{
 		num: "03",
 		prop: "Court",
-		val: "Rec Center, Ct. 2",
-		rem: "Court 1 has the dead spot. We know. Nobody has fixed it.",
+		val: "Shady Grove Middle School",
+		rem: "The gym, not the cafeteria. Park by the side door.",
 	},
 	{
 		num: "04",
 		prop: "Format",
 		val: "5v5 · to 15",
-		rem: "Ones and twos, win by two, winners stay.",
+		rem: "Twos and threes, win by two, winners stay.",
 	},
 	{
 		num: "05",
@@ -138,7 +141,7 @@ export const rules = [
 	},
 	{
 		num: "03",
-		title: "Ones and twos, to 15",
+		title: "Twos and threes, to 15",
 		body: 'Win by two. There is no "one more" once someone has left to get their kid.',
 	},
 	{
@@ -148,8 +151,8 @@ export const rules = [
 	},
 	{
 		num: "05",
-		title: "No heat checks before 8",
-		body: "Nobody has earned a 30-footer at 7:10. Nobody has earned one at 8:30 either, but rules are rules.",
+		title: "No heat checks before 9:30",
+		body: "Nobody has earned a 30-footer at 9:10. Nobody has earned one at 10:15 either, but rules are rules.",
 	},
 	{
 		num: "06",

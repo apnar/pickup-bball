@@ -6,7 +6,7 @@ import { user } from "./auth";
 /** A gym rental permit PDF, stored in the PERMITS R2 bucket under `r2Key`. */
 export const permit = sqliteTable("permit", {
 	id: text("id").primaryKey(),
-	/** Shown on the schedule, e.g. "Rec Center, Sep 14 - 28". */
+	/** Shown on the schedule, e.g. "Shady Grove, Sep 14 - 28". */
 	label: text("label").notNull(),
 	r2Key: text("r2_key").notNull(),
 	fileName: text("file_name").notNull(),

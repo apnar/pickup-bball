@@ -94,7 +94,7 @@ function SchedulePage() {
 			<SectionKicker className="mb-5">05 · Booked</SectionKicker>
 			{upcoming.length === 0 ? (
 				<p className="text-[15px] text-neutral-700 leading-6">
-					Nothing booked. Somebody call the rec center.
+					Nothing booked. Somebody call the school.
 				</p>
 			) : (
 				<GameTable games={upcoming} />

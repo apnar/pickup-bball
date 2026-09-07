@@ -36,7 +36,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content:
-					"A weekly full-court run. Monday, 7 PM. Show up or get talked about.",
+					"A weekly full-court run. Monday, 9 PM. Show up or get talked about.",
 			},
 		],
 		links: [
