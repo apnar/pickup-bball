@@ -28,6 +28,10 @@ export const game = sqliteTable(
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),
+		/** When an admin emailed the list about this game. */
+		announcedAt: integer("announced_at", { mode: "timestamp_ms" }),
+		/** Set by the game-day reminder job; also its once-only lock. */
+		reminderSentAt: integer("reminder_sent_at", { mode: "timestamp_ms" }),
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

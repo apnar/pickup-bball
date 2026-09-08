@@ -17,6 +17,12 @@
 	"observability": {
 		"enabled": true
 	},
+	// Hourly. The handler in src/server.ts only sends the game-day reminder
+	// once it is 9 AM in the gym's timezone, and only once per game, so the
+	// schedule does not have to track daylight saving.
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
 	"vars": {
 		// Canonical public origin of the site. Better Auth uses it for cookies
 		// and callbacks, and src/server.ts redirects other hosts to it.

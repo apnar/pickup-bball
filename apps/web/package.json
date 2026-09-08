@@ -23,6 +23,7 @@
 		"@pickup-bball/api": "workspace:*",
 		"@pickup-bball/auth": "workspace:*",
 		"@pickup-bball/db": "workspace:*",
+		"@pickup-bball/email": "workspace:*",
 		"@pickup-bball/env": "workspace:*",
 		"@pickup-bball/ui": "workspace:*",
 		"@tailwindcss/vite": "^4.3.3",

@@ -14,7 +14,7 @@ import {
 } from "@/content/run";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/_admin/admin")({
+export const Route = createFileRoute("/_admin/admin/")({
 	component: AdminGamesPage,
 });
 

@@ -18,6 +18,8 @@ function selectGames(db: Db) {
 			endTime: game.endTime,
 			location: game.location,
 			notes: game.notes,
+			announcedAt: game.announcedAt,
+			reminderSentAt: game.reminderSentAt,
 			permit: {
 				id: permit.id,
 				label: permit.label,

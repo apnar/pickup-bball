@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import PageTitle from "@/components/page-title";
 import RsvpBoard from "@/components/rsvp-board";
+import SubscribeForm from "@/components/subscribe-form";
 import { conditions } from "@/content/run";
 import { nextHeadcountOptions } from "@/hooks/use-rsvps";
 
@@ -84,6 +85,7 @@ function HomeComponent() {
 			</section>
 
 			<RsvpBoard />
+			<SubscribeForm />
 		</>
 	);
 }

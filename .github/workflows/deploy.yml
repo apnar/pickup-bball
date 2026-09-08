@@ -24,6 +24,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Biome
         run: pnpm exec biome ci .
+      - name: Unit tests
+        run: pnpm run test
       # Build first: it generates apps/web/src/routeTree.gen.ts, which is
       # gitignored and required by the typecheck.
       - name: Build

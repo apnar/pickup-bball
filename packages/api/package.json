@@ -17,6 +17,7 @@
 		"@orpc/zod": "catalog:",
 		"@pickup-bball/auth": "workspace:*",
 		"@pickup-bball/db": "workspace:*",
+		"@pickup-bball/email": "workspace:*",
 		"@pickup-bball/env": "workspace:*",
 		"drizzle-orm": "^0.45.2",
 		"zod": "catalog:"

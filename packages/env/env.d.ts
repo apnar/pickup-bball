@@ -10,6 +10,16 @@ export interface CloudflareEnv {
 	BETTER_AUTH_SECRET: string;
 	/** Public origin of the deployed Worker (wrangler.jsonc `vars`). */
 	BETTER_AUTH_URL: string;
+	/**
+	 * Secret: `wrangler secret put BREVO_API_KEY` (or .dev.vars locally).
+	 * Optional: without it emails are logged to the console, not sent.
+	 */
+	BREVO_API_KEY?: string;
+	/**
+	 * Secret: `wrangler secret put BREVO_WEBHOOK_SECRET`. Bearer token Brevo
+	 * sends to /api/brevo/webhook. Without it the webhook route answers 404.
+	 */
+	BREVO_WEBHOOK_SECRET?: string;
 }
 
 declare module "cloudflare:workers" {

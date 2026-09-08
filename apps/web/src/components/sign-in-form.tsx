@@ -3,7 +3,7 @@ import { Button } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
 import { Label } from "@pickup-bball/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -136,10 +136,16 @@ export default function SignInForm({
 				</form.Subscribe>
 			</form>
 
-			<div className="mt-4">
+			<div className="mt-4 flex flex-wrap items-center justify-between gap-2">
 				<Button variant="link" onClick={onSwitchToSignUp}>
 					Need an account? Sign Up
 				</Button>
+				<Link
+					to="/forgot-password"
+					className="text-[13px] text-steel-700 leading-6"
+				>
+					Forgot it? Happens to the best of us.
+				</Link>
 			</div>
 		</Blueprint>
 	);

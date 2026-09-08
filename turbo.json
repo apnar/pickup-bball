@@ -30,6 +30,9 @@
 			"dependsOn": ["build"],
 			"cache": false,
 			"interactive": true
+		},
+		"test": {
+			"dependsOn": ["^build"]
 		}
 	}
 }

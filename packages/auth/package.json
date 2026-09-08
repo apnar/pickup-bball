@@ -12,6 +12,7 @@
 	"scripts": {},
 	"dependencies": {
 		"@pickup-bball/db": "workspace:*",
+		"@pickup-bball/email": "workspace:*",
 		"@pickup-bball/env": "workspace:*",
 		"better-auth": "catalog:",
 		"zod": "catalog:"

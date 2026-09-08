@@ -13,6 +13,9 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { logger } from "hono/logger";
 
+import { brevoWebhook } from "./brevo-webhook";
+import { unsubscribe } from "./unsubscribe";
+
 const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [
 		onError((error) => {
@@ -98,5 +101,8 @@ app.get("/permits/:id/file", async (c) => {
 	headers.set("content-disposition", `${disposition}; filename="${safeName}"`);
 	return new Response(object.body, { headers });
 });
+
+app.route("/unsubscribe", unsubscribe);
+app.route("/brevo/webhook", brevoWebhook);
 
 app.get("/health", (c) => c.text("OK"));

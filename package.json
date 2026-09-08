@@ -14,7 +14,8 @@
 		"db:generate": "turbo run db:generate -F @pickup-bball/db --",
 		"db:migrate:local": "turbo run db:migrate:local -F web --",
 		"db:migrate:remote": "turbo run db:migrate:remote -F web --",
-		"deploy": "turbo run deploy -F web --"
+		"deploy": "turbo run deploy -F web --",
+		"test": "turbo run test"
 	},
 	"dependencies": {
 		"@pickup-bball/env": "workspace:*",

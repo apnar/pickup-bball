@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
 	createRootRouteWithContext,
 	HeadContent,
+	Link,
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
@@ -65,7 +66,13 @@ function RootDocument() {
 						</main>
 						<footer className="flex flex-wrap justify-between gap-2 border-divider border-t py-12 text-[13px] text-neutral-700 leading-6">
 							<span>{SITE_NAME} · est. whenever Sean says</span>
-							<span>Rain, snow, or Sean's hip: text the group chat first.</span>
+							<span>
+								Rain, snow, or Sean's hip: text the group chat first, or{" "}
+								<Link to="/" hash="subscribe" className="text-steel-700">
+									get the emails
+								</Link>
+								.
+							</span>
 						</footer>
 					</div>
 				</div>

@@ -21,6 +21,19 @@ export function todayInRunTimezone(now: Date = new Date()): string {
 	return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+/** Current wall-clock time in the gym's timezone as HH:MM (24-hour). */
+export function timeInRunTimezone(now: Date = new Date()): string {
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone: RUN_TIMEZONE,
+		hour: "2-digit",
+		minute: "2-digit",
+		hourCycle: "h23",
+	}).formatToParts(now);
+	const get = (type: Intl.DateTimeFormatPartTypes) =>
+		parts.find((p) => p.type === type)?.value ?? "00";
+	return `${get("hour")}:${get("minute")}`;
+}
+
 /** "Mon, Sep 14" for a YYYY-MM-DD date. */
 export function formatGameDate(date: string): string {
 	return new Intl.DateTimeFormat("en-US", {

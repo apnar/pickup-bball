@@ -16,6 +16,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Drizzle** - TypeScript-first ORM
 - **Cloudflare D1** - SQLite database
 - **Authentication** - Better-Auth
+- **Email** - Brevo transactional API, called with plain `fetch` from `packages/email`
 - **Turborepo** - Optimized monorepo build system
 - **Biome** - Linting and formatting
 
@@ -36,12 +37,15 @@ The whole site runs as a single Cloudflare Worker on the free plan:
   - `/api/auth/*` - Better Auth
   - `/api/rpc` - oRPC (the web app calls this from the browser and calls the router directly during SSR)
   - `/api/reference` - OpenAPI reference
+  - `/api/unsubscribe/:token` - one-click unsubscribe pages for list emails
+  - `/api/brevo/webhook` - Brevo tells the app who unsubscribed, bounced or complained
   - `/api/health` - health check
+- A Cron Trigger runs the Worker's `scheduled` handler (`apps/web/src/server.ts`) every hour. It sends the game-day reminder once it is 9 AM at the gym, once per game.
 - The database is Cloudflare D1 (SQLite) accessed through Drizzle via the `DB` binding. Env vars, secrets and bindings come from `cloudflare:workers` (typed in `packages/env/env.d.ts`, which must match `apps/web/wrangler.jsonc`).
 
 ## Local development
 
-1. Create `apps/web/.dev.vars` from `apps/web/.dev.vars.example` and set a random `BETTER_AUTH_SECRET`.
+1. Create `apps/web/.dev.vars` from `apps/web/.dev.vars.example` and set a random `BETTER_AUTH_SECRET`. `BREVO_API_KEY` is optional: without it every email is printed to the dev server's console instead of sent, which is the normal local setup.
 2. Apply the migrations to the local D1 database (stored under `apps/web/.wrangler/`):
 
 ```bash
@@ -71,7 +75,45 @@ pnpm --filter web exec wrangler d1 execute DB --remote --command "update user se
 - **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
 - **Headcount** rows in `rsvp` belong to a game (`game_id`). Anyone can add a name or flip it In/Out for the next game; no sign-in is required. Deleting a game deletes its headcount.
 
-The oRPC procedures are `games.*`, `permits.*` and `rsvp.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+The oRPC procedures are `games.*`, `permits.*`, `rsvp.*`, `subscribers.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+
+## Email
+
+Players hear about games by email. Brevo delivers; the app owns the list, the templates and the log.
+
+- **Who gets it.** The `subscriber` table. People join from the form on the home page (`source = 'site'`), admins add them on `/admin/email` (`admin`), and every new account is added on sign-up (`signup`). Each row has an `unsubscribe_token`; every list email links to `/api/unsubscribe/<token>`, which works without JavaScript and offers an undo. Signed-in players can also flip "Game emails" on `/dashboard`. A past unsubscribe is respected when the same address signs up later.
+- **What goes out.**
+  - *Announcement* - when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from the subscriber table.
+  - *Reminder* - the morning of a game, with the current headcount and who is In. Sent by the hourly Cron Trigger once it is 9 AM Eastern (`REMINDER_LOCAL_HOUR` in `packages/api/src/jobs/reminders.ts`), at most once per game (`game.reminder_sent_at` is the lock). Admins can also send it early from `/admin/email`.
+  - *Message* - anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only.
+  - *Account* - Better Auth's verification email on sign-up (sign-in is not blocked while unverified) and password reset from `/forgot-password`. These carry no unsubscribe link.
+- **Sender.** `info@moco-pickup.com`, set in `packages/email/src/sender.ts`. The address and the domain's DNS records are configured in Brevo.
+- **Log.** Every list send writes one `email_send` row (kind, subject, recipient count, failures, Brevo message ids). `/admin/email` shows the last twenty.
+- **Batching.** One Brevo request carries up to 99 personalised copies (`messageVersions`), so a full list costs one or two subrequests.
+- **Brevo's own unsubscribe.** Brevo adds its own `List-Unsubscribe` header to every email (ours is replaced), so a player can also leave from the Unsubscribe button in their mail app. That puts them on Brevo's transactional blocklist, and Brevo tells the app through a webhook at `/api/brevo/webhook` (`apps/web/src/server/brevo-webhook.ts`), which flips the row to unsubscribed. Hard bounces, spam complaints and invalid addresses are dropped the same way. When someone rejoins through the site, the app removes them from Brevo's blocklist again.
+
+Setting it up:
+
+1. In Brevo, create a v3 API key (Account > SMTP & API > API keys).
+2. Production: `pnpm --filter web exec wrangler secret put BREVO_API_KEY`.
+3. Local sending (optional): put the same key in `apps/web/.dev.vars`.
+4. The webhook: pick a random token, set it with `pnpm --filter web exec wrangler secret put BREVO_WEBHOOK_SECRET`, then register the webhook once (already done for the production account):
+
+   ```bash
+   curl -H "api-key: $BREVO_API_KEY" -H "content-type: application/json" https://api.brevo.com/v3/webhooks \
+     -d '{"url":"https://moco-pickup.com/api/brevo/webhook","type":"transactional","events":["unsubscribed","hardBounce","spam","invalid"],"auth":{"type":"bearer","token":"<the token>"}}'
+   ```
+
+   Without the secret the route answers 404, so a missing webhook never breaks anything else.
+5. To exercise the reminder job locally with the dev server running: `curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"`.
+
+The templates and Brevo client in `packages/email` are pure functions with tests: `pnpm run test`.
+
+Brevo also offers an MCP server for inspecting the account (senders, templates, delivery logs) from Claude Code. Register it once per machine, outside the repo, with an MCP token from the same API keys page:
+
+```bash
+claude mcp add --transport http --scope user brevo https://mcp.brevo.com/v1/brevo/mcp --header "Authorization: Bearer <MCP token>"
+```
 
 ## Database changes
 
@@ -88,6 +130,7 @@ One-time setup:
 1. Log in: `pnpm --filter web exec wrangler login`.
 2. Create the database: `pnpm --filter web exec wrangler d1 create pickup-bball-db` and paste the returned id into `database_id` in `apps/web/wrangler.jsonc`.
 3. Set the auth secret: `pnpm --filter web exec wrangler secret put BETTER_AUTH_SECRET`.
+   Set the Brevo key and webhook token the same way: `pnpm --filter web exec wrangler secret put BREVO_API_KEY` and `... put BREVO_WEBHOOK_SECRET` (see "Email").
 4. Create the permit bucket: `pnpm --filter web exec wrangler r2 bucket create pickup-bball-permits`.
 5. Apply migrations to production: `pnpm run db:migrate:remote`.
 6. Deploy: `pnpm run deploy`.
@@ -96,7 +139,7 @@ One-time setup:
 
 ### Automatic deploys
 
-`.github/workflows/deploy.yml` runs on every push and pull request. It lints with Biome, typechecks and builds. On pushes to `main` it then applies pending D1 migrations and deploys the Worker with Cloudflare's `wrangler-action`.
+`.github/workflows/deploy.yml` runs on every push and pull request. It lints with Biome, runs the unit tests, typechecks and builds. On pushes to `main` it then applies pending D1 migrations and deploys the Worker with Cloudflare's `wrangler-action`.
 
 It needs one repository secret, `CLOUDFLARE_API_TOKEN`: a Cloudflare API token created from the "Edit Cloudflare Workers" template with **D1: Edit** and **Workers R2 Storage: Edit** added. Set it with `gh secret set CLOUDFLARE_API_TOKEN` or in the repository's Actions secrets. Until the secret exists the deploy job skips with a warning instead of failing. The account id is in `apps/web/wrangler.jsonc`, so no account secret is needed.
 
@@ -112,7 +155,8 @@ pickup-bball/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # oRPC router / business logic
 │   ├── auth/        # Better Auth configuration
-│   ├── db/          # Drizzle schema (auth, game, permit, rsvp) and D1 migrations
+│   ├── db/          # Drizzle schema (auth, game, permit, rsvp, subscriber, email_send) and D1 migrations
+│   ├── email/       # Brevo client, email templates and their tests
 │   └── env/         # Typed access to Worker env and bindings
 ```
 
@@ -122,6 +166,7 @@ pickup-bball/
 - `pnpm run build`: Build the Worker and static assets
 - `pnpm run check-types`: Check TypeScript types across the workspace
 - `pnpm run check`: Run Biome formatting and linting
+- `pnpm run test`: Run the unit tests (email templates and Brevo client)
 - `pnpm run db:generate`: Generate a D1 migration from the Drizzle schema
 - `pnpm run db:migrate:local`: Apply migrations to the local D1 database
 - `pnpm run db:migrate:remote`: Apply migrations to the production D1 database

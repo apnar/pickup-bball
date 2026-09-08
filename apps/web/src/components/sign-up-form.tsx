@@ -39,7 +39,7 @@ export default function SignUpForm({
 						navigate({
 							to: "/dashboard",
 						});
-						toast.success("Sign up successful");
+						toast.success("You're in. Check your email to verify the address.");
 					},
 					onError: (error) => {
 						toast.error(error.error.message || error.error.statusText);

@@ -44,6 +44,9 @@ function AdminLayout() {
 				<Link to="/admin/users" className={tabClass}>
 					Users
 				</Link>
+				<Link to="/admin/email" className={tabClass}>
+					Email
+				</Link>
 			</nav>
 			<Outlet />
 		</section>
