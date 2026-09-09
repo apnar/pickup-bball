@@ -2,8 +2,8 @@
  * Facts about the run that the API needs. Copy lives in apps/web/src/content.
  */
 
-/** How many players the run can take before someone sits. */
-export const CAPACITY = 10;
+/** How many names the sheet takes: five a side, plus the two subs there always are. */
+export const CAPACITY = 12;
 
 /** The gym's timezone. Game dates are calendar days here. */
 export const RUN_TIMEZONE = "America/New_York";

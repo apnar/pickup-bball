@@ -22,13 +22,20 @@ const publicConditions = [
 	},
 	conditions.find((c) => c.prop === "Format"),
 	conditions.find((c) => c.prop === "Ball"),
-].filter(Boolean) as { num: string; prop: string; val: string; rem: string }[];
+]
+	.filter(Boolean)
+	.map((c, i) => ({
+		...(c as { num: string; prop: string; val: string; rem: string }),
+		// The full sheet numbers tip-off 03 and court 04. Both are hidden from
+		// strangers, so renumber what is left instead of leaving a gap.
+		num: String(i + 1).padStart(2, "0"),
+	}));
 
 const howToGetIn = [
 	{
 		num: "01",
 		title: "It is invite only",
-		body: "Ten spots, one gym, one permit. Nobody signs themselves up.",
+		body: "Twelve spots, one gym, one permit. Nobody signs themselves up.",
 	},
 	{
 		num: "02",
@@ -37,6 +44,11 @@ const howToGetIn = [
 	},
 	{
 		num: "03",
+		title: "Or just ask Sean",
+		body: "He has the ball, the permit and the only vote that counts. Worst case he says the run is full, which it is.",
+	},
+	{
+		num: "04",
 		title: "Already in?",
 		body: "Every link in your email signs you in. Check your inbox, or use a password.",
 	},
@@ -112,11 +124,13 @@ export default function MarketingHome() {
 
 			<section className="py-12 pb-15">
 				<SectionKicker className="mb-6">02 · How to get in</SectionKicker>
-				<Blueprint className="grid grid-cols-1 md:grid-cols-3">
+				<Blueprint className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
 					{howToGetIn.map((step) => (
 						<div
 							key={step.num}
-							className="border-ink/8 border-b p-6 md:not-last:border-r md:border-b-0"
+							// Two up on tablets, four across on desktop: the dividers
+							// follow, so the last cell in a row never grows one.
+							className="border-ink/8 border-b p-6 md:border-b-0 lg:not-last:border-r md:[&:nth-child(-n+2)]:border-b lg:[&:nth-child(-n+2)]:border-b-0 md:[&:nth-child(odd)]:border-r"
 						>
 							<span className="kicker tnum text-steel-700">{step.num}</span>
 							<h2 className="mt-2 font-heading text-[22px] uppercase leading-7 tracking-[0.02em]">
