@@ -11,6 +11,7 @@ import {
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import { SITE_NAME } from "@/content/run";
+import { getUser } from "@/functions/get-user";
 import type { orpc } from "@/utils/orpc";
 
 import Header from "../components/header";
@@ -22,6 +23,14 @@ export interface RouterAppContext {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+	/**
+	 * Every page needs to know whether it is talking to a player or a
+	 * stranger, so the session is read once here and flows down as context.
+	 * Runs on each client navigation: one server-function round trip, and no
+	 * D1 read while the five-minute cookie cache holds.
+	 */
+	beforeLoad: async () => ({ session: await getUser() }),
+
 	head: () => ({
 		meta: [
 			{
@@ -37,7 +46,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 			{
 				name: "description",
 				content:
-					"A weekly full-court run. Monday, 9 PM. Show up or get talked about.",
+					"A weekly full-court run in Montgomery County. Show up or get talked about.",
 			},
 		],
 		links: [
@@ -52,6 +61,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 });
 
 function RootDocument() {
+	const { session } = Route.useRouteContext();
+
 	return (
 		<html lang="en">
 			<head>
@@ -66,13 +77,20 @@ function RootDocument() {
 						</main>
 						<footer className="flex flex-wrap justify-between gap-2 border-divider border-t py-12 text-[13px] text-neutral-700 leading-6">
 							<span>{SITE_NAME} · est. whenever Sean says</span>
-							<span>
-								Rain, snow, or Sean's hip: text the group chat first, or{" "}
-								<Link to="/" hash="subscribe" className="text-steel-700">
-									get the emails
-								</Link>
-								.
-							</span>
+							{session ? (
+								<span>
+									Rain, snow, or Sean's hip: text the group chat first, then
+									check your email.
+								</span>
+							) : (
+								<span>
+									Already on the list?{" "}
+									<Link to="/login" className="text-steel-700">
+										Sign in
+									</Link>
+									.
+								</span>
+							)}
 						</footer>
 					</div>
 				</div>

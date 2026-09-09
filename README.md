@@ -60,9 +60,24 @@ pnpm run dev
 
 Open [http://localhost:3001](http://localhost:3001).
 
+## Who sees what
+
+The site is two sites wearing one coat.
+
+- **Anonymous visitors** get the pitch: Monday nights, somewhere in Montgomery County, the rules, and how to get in. No court, no tip-off time, no booked dates, no headcount, no names.
+- **Players** — anyone with a session — get everything: the next game with its court and time, the schedule, the roster, and one-tap RSVP under their own name.
+
+Nobody signs themselves up. Public sign-up is closed (`emailAndPassword.disableSignUp`), and there is no join form. An admin adds an address on `/admin/email`, the welcome email goes out, and **every link in every email that person gets is unique to them and signs them in when clicked**. That link is a bearer token, which is why the emails say not to forward it. The one exception is the permit PDF: it is meant to be waved at gym staff, so its URL carries nothing.
+
+Sessions last 180 days and roll forward. The session cookie caches the user for five minutes, so ordinary navigation costs no database read — and a role changed by SQL takes up to five minutes to show up.
+
+Losing access: unsubscribing from emails does not revoke it. Removing someone on `/admin/email` does, since their token goes with the row; live sessions can be revoked from `/admin/users`.
+
+Passwords are optional. Password sign-in is still the default form on `/login` (admins use it), and any player can set one from `/dashboard`; the emailed links keep working either way. Below the sign-in form, "Email me my link" mails a fresh one to any address on the list, at most once every ten minutes, and says the same thing whether or not the address is on it.
+
 ## Games, permits and admins
 
-A game exists only once a gym has been rented. Admins book games and file the permit PDFs; everyone else sees the schedule and the next game's headcount.
+A game exists only once a gym has been rented. Admins book games and file the permit PDFs; players see the schedule and the next game's headcount.
 
 - **Admins** are accounts with `role = 'admin'` (Better Auth's admin plugin). Promote the first one with a SQL command, then use the Users tab on `/admin` to promote others:
 
@@ -71,26 +86,28 @@ pnpm --filter web exec wrangler d1 execute DB --remote --command "update user se
 ```
 
   Drop `--remote` to do the same against the local database.
-- **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games.
+- **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games. Both are players-only.
 - **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
-- **Headcount** rows in `rsvp` belong to a game (`game_id`). Anyone can add a name or flip it In/Out for the next game; no sign-in is required. Deleting a game deletes its headcount.
+- **Headcount** rows in `rsvp` belong to a game (`game_id`). A player taps "I'm in as {name}" to put themselves on the sheet (`rsvp.addMe`, which claims the row by `user_id` and marks it "you"), and can type a friend's name in as well. Deleting a game deletes its headcount.
 
-The oRPC procedures are `games.*`, `permits.*`, `rsvp.*`, `subscribers.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+The oRPC procedures are `account.*`, `games.*`, `permits.*`, `rsvp.*`, `subscribers.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
 
 ## Email
 
-Players hear about games by email. Brevo delivers; the app owns the list, the templates and the log.
+Players hear about games by email, and get in through the links in them. Brevo delivers; the app owns the list, the templates and the log.
 
-- **Who gets it.** The `subscriber` table. People join from the form on the home page (`source = 'site'`), admins add them on `/admin/email` (`admin`), and every new account is added on sign-up (`signup`). Each row has an `unsubscribe_token`; every list email links to `/api/unsubscribe/<token>`, which works without JavaScript and offers an undo. Signed-in players can also flip "Game emails" on `/dashboard`. A past unsubscribe is respected when the same address signs up later.
+- **Who gets it.** The `subscriber` table — the same table that decides who is a player. Admins add rows on `/admin/email` (`source = 'admin'`); older rows came from the site form (`site`) and the old public sign-up (`signup`). Each row has an `unsubscribe_token` for the unsubscribe link and a `link_token` for the sign-in links, both plain text (they ride in every email anyway). Signed-in players can flip "Game emails" off on `/dashboard`; a past unsubscribe is respected if the same address turns up again.
+- **How a link signs you in.** Every link in a list email points at `/api/auth/link?k=<link_token>&to=<path>`, a GET endpoint added by the `email-link` plugin in `packages/auth/src/link.ts`. It finds the subscriber, creates their `user` row on the first click (no password, `email_verified = 1`) or marks an existing unverified one verified, links `subscriber.user_id`, opens a session and redirects to `to` — which is checked by `safeReturnPath` and falls back to `/` for anything that points off this site. An unknown token lands on `/login?error=link`.
 - **What goes out.**
-  - *Announcement* - when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from the subscriber table.
-  - *Reminder* - the morning of a game, with the current headcount and who is In. Sent by the hourly Cron Trigger once it is 9 AM Eastern (`REMINDER_LOCAL_HOUR` in `packages/api/src/jobs/reminders.ts`), at most once per game (`game.reminder_sent_at` is the lock). Admins can also send it early from `/admin/email`.
-  - *Message* - anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only.
-  - *Account* - Better Auth's verification email on sign-up (sign-in is not blocked while unverified) and password reset from `/forgot-password`. These carry no unsubscribe link.
+  - *Welcome* — when an admin adds someone, or resends their link from the subscriber table, or a player asks for one from `/login`. Carries their concrete sign-in link, no unsubscribe footer.
+  - *Announcement* — when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from the subscriber table.
+  - *Reminder* — the morning of a game, with the current headcount and who is In. Sent by the hourly Cron Trigger once it is 9 AM Eastern (`REMINDER_LOCAL_HOUR` in `packages/api/src/jobs/reminders.ts`), at most once per game (`game.reminder_sent_at` is the lock). Admins can also send it early from `/admin/email`.
+  - *Message* — anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only, with their own token substituted so the links are real.
+  - *Account* — Better Auth's password reset from `/forgot-password`, and the verification email left over from the sign-up era. These carry no unsubscribe link.
 - **Sender.** `info@moco-pickup.com`, set in `packages/email/src/sender.ts`. The address and the domain's DNS records are configured in Brevo.
 - **Log.** Every list send writes one `email_send` row (kind, subject, recipient count, failures, Brevo message ids). `/admin/email` shows the last twenty.
-- **Batching.** One Brevo request carries up to 99 personalised copies (`messageVersions`), so a full list costs one or two subrequests.
-- **Brevo's own unsubscribe.** Brevo adds its own `List-Unsubscribe` header to every email (ours is replaced), so a player can also leave from the Unsubscribe button in their mail app. That puts them on Brevo's transactional blocklist, and Brevo tells the app through a webhook at `/api/brevo/webhook` (`apps/web/src/server/brevo-webhook.ts`), which flips the row to unsubscribed. Hard bounces, spam complaints and invalid addresses are dropped the same way. When someone rejoins through the site, the app removes them from Brevo's blocklist again.
+- **Batching and personalisation.** One Brevo request carries up to 99 personalised copies (`messageVersions`), so a full list costs one or two subrequests. Each copy gets `params.name`, `params.unsubscribeUrl` and `params.key` — the last is what turns the shared template's links into that one person's sign-in links. Without `BREVO_API_KEY` the email is printed instead, with those placeholders filled in from the first recipient so the link in the console is clickable.
+- **Brevo's own unsubscribe.** Brevo adds its own `List-Unsubscribe` header to every email (ours is replaced), so a player can also leave from the Unsubscribe button in their mail app. That puts them on Brevo's transactional blocklist, and Brevo tells the app through a webhook at `/api/brevo/webhook` (`apps/web/src/server/brevo-webhook.ts`), which flips the row to unsubscribed. Hard bounces, spam complaints and invalid addresses are dropped the same way. When an admin adds them back, the app removes them from Brevo's blocklist again.
 
 Setting it up:
 
@@ -135,7 +152,7 @@ One-time setup:
 5. Apply migrations to production: `pnpm run db:migrate:remote`.
 6. Deploy: `pnpm run deploy`.
 7. Set `BETTER_AUTH_URL` in `apps/web/wrangler.jsonc` `vars` to the URL wrangler printed (or your custom domain) and deploy again.
-8. Sign up on the site, then promote yourself to admin with the command in "Games, permits and admins".
+8. Ask an existing admin to add your address on `/admin/email`, then promote yourself with the command in "Games, permits and admins". On a brand new database, insert the first `subscriber` row by hand.
 
 ### Automatic deploys
 

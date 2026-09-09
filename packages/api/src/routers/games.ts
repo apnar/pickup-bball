@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { isUniqueViolation } from "../db-errors";
 import { findGame, findNextGame, listGames } from "../games";
-import { adminProcedure, publicProcedure } from "../index";
+import { adminProcedure, protectedProcedure } from "../index";
 
 const dateSchema = z
 	.string()
@@ -23,11 +23,14 @@ const gameInput = z.object({
 });
 
 export const gamesRouter = {
-	/** The next game on or after today, or null when no gym is booked. */
-	next: publicProcedure.handler(({ context }) => findNextGame(context.db)),
+	/**
+	 * The next game on or after today, or null when no gym is booked. Players
+	 * only: where and when the run is stays off the marketing site.
+	 */
+	next: protectedProcedure.handler(({ context }) => findNextGame(context.db)),
 
 	/** Upcoming games plus a few recent ones, for the schedule page. */
-	list: publicProcedure.handler(({ context }) => listGames(context.db)),
+	list: protectedProcedure.handler(({ context }) => listGames(context.db)),
 
 	create: adminProcedure
 		.input(gameInput)

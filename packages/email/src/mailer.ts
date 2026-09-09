@@ -15,6 +15,8 @@ export type ListRecipient = {
 	email: string;
 	name: string | null;
 	unsubscribeUrl: string;
+	/** Their sign-in token, substituted into every link back to the site. */
+	linkToken: string | null;
 };
 
 export type ListResult = {
@@ -31,7 +33,7 @@ export type Mailer = {
 	sendOne(
 		to: Address,
 		rendered: Rendered,
-		opts?: { tags?: string[] },
+		opts?: { tags?: string[]; params?: Record<string, string> },
 	): Promise<SendOutcome>;
 	/**
 	 * One email to everyone on the list, personalised per recipient through
@@ -57,7 +59,11 @@ export type MailerOptions = {
 function versionsFor(recipients: ListRecipient[]): MessageVersion[] {
 	return recipients.map((r) => ({
 		to: [{ email: r.email, name: r.name }],
-		params: { name: r.name ?? "", unsubscribeUrl: r.unsubscribeUrl },
+		params: {
+			name: r.name ?? "",
+			unsubscribeUrl: r.unsubscribeUrl,
+			key: r.linkToken ?? "",
+		},
 	}));
 }
 
@@ -77,13 +83,25 @@ export function createMailer(options: MailerOptions): Mailer {
 		};
 	}
 
-	function logDryRun(label: string, rendered: Rendered) {
+	/**
+	 * Print the email instead of sending it. `params` are substituted the way
+	 * Brevo would, so a sign-in link in the console is clickable.
+	 */
+	function logDryRun(
+		label: string,
+		rendered: Rendered,
+		params?: Record<string, string>,
+	) {
+		let text = rendered.text;
+		for (const [name, value] of Object.entries(params ?? {})) {
+			text = text.replaceAll(`{{ params.${name} }}`, value);
+		}
 		log(
 			[
 				`[email dry run] ${label}`,
 				`Subject: ${rendered.subject}`,
 				"",
-				rendered.text,
+				text,
 			].join("\n"),
 		);
 	}
@@ -97,8 +115,12 @@ export function createMailer(options: MailerOptions): Mailer {
 		dryRun,
 
 		async sendOne(to, rendered, opts) {
-			if (dryRun) logDryRun(`to ${to.email}`, rendered);
-			return send({ ...base(rendered, opts?.tags), to: [to] });
+			if (dryRun) logDryRun(`to ${to.email}`, rendered, opts?.params);
+			return send({
+				...base(rendered, opts?.tags),
+				to: [to],
+				params: opts?.params,
+			});
 		},
 
 		async sendList(recipients, rendered, opts) {
@@ -110,7 +132,11 @@ export function createMailer(options: MailerOptions): Mailer {
 			};
 			if (recipients.length === 0) return result;
 			if (dryRun) {
-				logDryRun(`to ${recipients.length} subscriber(s)`, rendered);
+				logDryRun(
+					`to ${recipients.length} subscriber(s)`,
+					rendered,
+					versionsFor(recipients.slice(0, 1))[0]?.params,
+				);
 			}
 			for (const batch of chunk(recipients, MAX_VERSIONS_PER_CALL)) {
 				// No List-Unsubscribe header here: Brevo replaces it with its own

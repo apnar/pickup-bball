@@ -5,7 +5,7 @@ import PageTitle from "@/components/page-title";
 import SectionKicker from "@/components/section-kicker";
 import { orpc } from "@/utils/orpc";
 
-export const Route = createFileRoute("/schedule")({
+export const Route = createFileRoute("/_auth/schedule")({
 	component: SchedulePage,
 	loader: ({ context }) =>
 		context.queryClient.ensureQueryData(context.orpc.games.list.queryOptions()),

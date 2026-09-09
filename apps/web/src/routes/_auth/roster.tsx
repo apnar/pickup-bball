@@ -4,7 +4,7 @@ import PageTitle from "@/components/page-title";
 import SectionKicker from "@/components/section-kicker";
 import { type RosterStatus, roster } from "@/content/run";
 
-export const Route = createFileRoute("/roster")({
+export const Route = createFileRoute("/_auth/roster")({
 	component: RosterPage,
 });
 

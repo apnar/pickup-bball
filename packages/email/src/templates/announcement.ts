@@ -1,4 +1,5 @@
 import type { Rendered } from "../brevo";
+import { emailLink } from "../links";
 import {
 	button,
 	escapeHtml,
@@ -22,7 +23,7 @@ export type AnnouncementInput = {
 
 /** "We have a gym." Sent by an admin once a game is booked. */
 export function announcementEmail(input: AnnouncementInput): Rendered {
-	const rsvpUrl = `${input.siteUrl}/#rsvp`;
+	const rsvpUrl = emailLink(input.siteUrl, "/#rsvp");
 	const open = Math.max(0, input.capacity - input.inCount);
 	const facts = [
 		{ label: "When", value: `${input.dateLabel}, ${input.timeLabel}` },

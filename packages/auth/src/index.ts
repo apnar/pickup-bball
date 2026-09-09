@@ -9,6 +9,8 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
+import { emailLink } from "./link";
+
 export function createAuth() {
 	const db = createDb();
 
@@ -21,6 +23,9 @@ export function createAuth() {
 		trustedOrigins: [env.BETTER_AUTH_URL],
 		emailAndPassword: {
 			enabled: true,
+			// Nobody signs themselves up any more: an admin adds the address and
+			// the welcome email carries the way in.
+			disableSignUp: true,
 			// Verification is encouraged, not enforced: nobody gets locked out of
 			// the headcount over a missed email.
 			requireEmailVerification: false,
@@ -69,10 +74,22 @@ export function createAuth() {
 				},
 			},
 		},
+		session: {
+			// Half a year, rolling. Players sign in from an email link once and
+			// then stop thinking about it.
+			expiresIn: 60 * 60 * 24 * 180,
+			updateAge: 60 * 60 * 24,
+			// The session cookie carries the user for five minutes, so ordinary
+			// navigation costs no D1 read. A role changed by SQL takes that long
+			// to show up.
+			cookieCache: { enabled: true, maxAge: 5 * 60 },
+		},
 		secret: env.BETTER_AUTH_SECRET,
 		baseURL: env.BETTER_AUTH_URL,
 		plugins: [
 			admin({ adminRoles: ["admin"], defaultRole: "user" }),
+			emailLink({ db }),
+			// Must stay last.
 			tanstackStartCookies(),
 		],
 	});

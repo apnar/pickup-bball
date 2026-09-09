@@ -1,7 +1,10 @@
 import { ORPCError } from "@orpc/server";
-import { emailSend } from "@pickup-bball/db/schema/email";
+import { emailSend, subscriber } from "@pickup-bball/db/schema/email";
 import { game } from "@pickup-bball/db/schema/game";
-import { messageEmail } from "@pickup-bball/email";
+import {
+	ensureLinkToken,
+	upsertSubscriber,
+} from "@pickup-bball/db/subscribers";
 import { getMailer } from "@pickup-bball/email/worker";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -13,8 +16,10 @@ import { sendReminderFor } from "../jobs/reminders";
 import {
 	countRecipients,
 	renderAnnouncement,
+	renderMessage,
 	renderReminder,
 	sendToList,
+	unsubscribeUrl,
 } from "../mail";
 
 const gameIdSchema = z.object({ gameId: z.string().min(1) });
@@ -112,7 +117,7 @@ export const mailRouter = {
 	previewMessage: adminProcedure
 		.input(messageSchema)
 		.handler(async ({ context, input }) => ({
-			...messageEmail(input),
+			...renderMessage(input),
 			recipientCount: await countRecipients(context.db),
 		})),
 
@@ -120,13 +125,35 @@ export const mailRouter = {
 	sendMessage: adminProcedure
 		.input(messageSchema.extend({ toSelf: z.boolean().default(false) }))
 		.handler(async ({ context, input }) => {
-			const rendered = messageEmail(input);
+			const rendered = renderMessage(input);
 			if (input.toSelf) {
 				const me = context.session.user;
+				// The test copy has to render its links like the real thing, so
+				// the admin needs a subscriber row of their own with a token.
+				const mine = await upsertSubscriber(context.db, {
+					email: me.email,
+					name: me.name,
+					source: "admin",
+					userId: me.id,
+					reactivate: false,
+				});
+				const key = await ensureLinkToken(context.db, mine.id);
+				const row = await context.db
+					.select({ unsubscribeToken: subscriber.unsubscribeToken })
+					.from(subscriber)
+					.where(eq(subscriber.id, mine.id))
+					.get();
 				const outcome = await getMailer().sendOne(
 					{ email: me.email, name: me.name },
 					rendered,
-					{ tags: ["message", "test"] },
+					{
+						tags: ["message", "test"],
+						params: {
+							name: me.name,
+							unsubscribeUrl: unsubscribeUrl(row?.unsubscribeToken ?? ""),
+							key,
+						},
+					},
 				);
 				if (!outcome.ok) {
 					throw new ORPCError("INTERNAL_SERVER_ERROR", {

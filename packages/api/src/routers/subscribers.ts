@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { subscriber } from "@pickup-bball/db/schema/email";
 import {
+	findActiveSubscriberByEmail,
 	findSubscriptionForUser,
 	setSubscriptionForUser,
 	upsertSubscriber,
@@ -11,31 +12,12 @@ import { z } from "zod";
 
 import { isUniqueViolation } from "../db-errors";
 import { adminProcedure, protectedProcedure, publicProcedure } from "../index";
+import { sendWelcome } from "../mail";
 
 const emailSchema = z.email("That is not an email address.").max(254);
 const nameSchema = z.string().trim().max(40, "Shorter name, please.");
 
 export const subscribersRouter = {
-	/** Join the list from the site. Says yes whether or not the address was new. */
-	subscribe: publicProcedure
-		.input(z.object({ email: emailSchema, name: nameSchema.optional() }))
-		.handler(async ({ context, input }) => {
-			try {
-				await upsertSubscriber(context.db, {
-					email: input.email,
-					name: input.name,
-					source: "site",
-					userId: context.session?.user.id ?? null,
-					reactivate: true,
-				});
-				await getMailer().unblock(input.email);
-			} catch (error) {
-				// Two people racing on the same address: the row exists, which is fine.
-				if (!isUniqueViolation(error)) throw error;
-			}
-			return { ok: true };
-		}),
-
 	/** The signed-in user's own subscription state. */
 	mine: protectedProcedure.handler(async ({ context }) => {
 		const row = await findSubscriptionForUser(context.db, {
@@ -70,12 +52,15 @@ export const subscribersRouter = {
 				source: subscriber.source,
 				createdAt: subscriber.createdAt,
 				unsubscribedAt: subscriber.unsubscribedAt,
+				userId: subscriber.userId,
+				linkSentAt: subscriber.linkSentAt,
 			})
 			.from(subscriber)
 			.orderBy(asc(subscriber.createdAt))
 			.all(),
 	),
 
+	/** Add somebody to the list and email them their way in. Admin only. */
 	add: adminProcedure
 		.input(z.object({ email: emailSchema, name: nameSchema.optional() }))
 		.handler(async ({ context, input }) => {
@@ -87,7 +72,11 @@ export const subscribersRouter = {
 					reactivate: true,
 				});
 				await getMailer().unblock(input.email);
-				return result;
+				const outcome = await sendWelcome(context.db, result.id, {
+					email: input.email,
+					name: input.name ?? null,
+				});
+				return { ...result, emailed: outcome.ok, dryRun: getMailer().dryRun };
 			} catch (error) {
 				if (isUniqueViolation(error)) {
 					throw new ORPCError("CONFLICT", {
@@ -96,6 +85,56 @@ export const subscribersRouter = {
 				}
 				throw error;
 			}
+		}),
+
+	/** Send someone their sign-in link again. Admin only. */
+	sendLink: adminProcedure
+		.input(z.object({ id: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const row = await context.db
+				.select({
+					id: subscriber.id,
+					email: subscriber.email,
+					name: subscriber.name,
+					status: subscriber.status,
+				})
+				.from(subscriber)
+				.where(eq(subscriber.id, input.id))
+				.get();
+			if (!row) {
+				throw new ORPCError("NOT_FOUND", { message: "Nobody by that id." });
+			}
+			if (row.status !== "active") {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "They unsubscribed. Add them back first.",
+				});
+			}
+			const outcome = await sendWelcome(context.db, row.id, row);
+			if (!outcome.ok) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: `Brevo said no: ${outcome.error}`,
+				});
+			}
+			return { ok: true, dryRun: getMailer().dryRun };
+		}),
+
+	/**
+	 * "Email me my link" from the login page. Says the same thing whether or
+	 * not the address is on the list, and refuses to be a mail cannon.
+	 */
+	requestLink: publicProcedure
+		.input(z.object({ email: emailSchema }))
+		.handler(async ({ context, input }) => {
+			const row = await findActiveSubscriberByEmail(context.db, input.email);
+			const cooledOff =
+				!row?.linkSentAt || Date.now() - row.linkSentAt.getTime() > 10 * 60_000;
+			if (row && cooledOff) {
+				await sendWelcome(context.db, row.id, {
+					email: input.email,
+					name: null,
+				});
+			}
+			return { ok: true };
 		}),
 
 	remove: adminProcedure

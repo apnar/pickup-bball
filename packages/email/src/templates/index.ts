@@ -3,3 +3,4 @@ export * from "./message";
 export * from "./reminder";
 export * from "./reset-password";
 export * from "./verify-email";
+export * from "./welcome";

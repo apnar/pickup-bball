@@ -24,6 +24,15 @@ export const subscriber = sqliteTable(
 		unsubscribedAt: integer("unsubscribed_at", { mode: "timestamp_ms" }),
 		/** Random token in every unsubscribe link. */
 		unsubscribeToken: text("unsubscribe_token").notNull().unique(),
+		/**
+		 * Random token in every other link we email this person. Clicking one
+		 * signs them in, so it is a bearer token: never put it on a permit URL.
+		 * Nullable only because SQLite cannot add a NOT NULL unique column; the
+		 * code treats null as "generate one now".
+		 */
+		linkToken: text("link_token").unique(),
+		/** When the last sign-in link was emailed, for the request cooldown. */
+		linkSentAt: integer("link_sent_at", { mode: "timestamp_ms" }),
 		source: text("source", { enum: SUBSCRIBER_SOURCES }).notNull(),
 		userId: text("user_id").references(() => user.id, {
 			onDelete: "set null",

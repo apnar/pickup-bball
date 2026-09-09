@@ -21,6 +21,8 @@ export function escapeHtml(value: string): string {
 export const PARAM = {
 	name: "{{ params.name }}",
 	unsubscribeUrl: "{{ params.unsubscribeUrl }}",
+	/** The reader's sign-in token, in every link back to the site. */
+	key: "{{ params.key }}",
 } as const;
 
 const FONT =
@@ -84,11 +86,11 @@ export function muted(html: string): string {
 
 /** Footer for list emails: who this is and how to leave. Uses raw placeholders. */
 export function listFooter(): string {
-	return `<p style="${styles.footer}">You get these because you asked for the Monday night emails. Had enough? <a href="${PARAM.unsubscribeUrl}" style="${styles.link}">Unsubscribe</a> and we will pretend not to notice.</p>`;
+	return `<p style="${styles.footer}">You get these because you are on the list. Links in this email sign you in, so don't forward it. Had enough? <a href="${PARAM.unsubscribeUrl}" style="${styles.link}">Unsubscribe</a> and we will pretend not to notice.</p>`;
 }
 
 export function listFooterText(): string {
-	return `You get these because you asked for the Monday night emails.\nUnsubscribe: ${PARAM.unsubscribeUrl}`;
+	return `You get these because you are on the list.\nLinks in this email sign you in, so don't forward it.\nUnsubscribe: ${PARAM.unsubscribeUrl}`;
 }
 
 export function layout(input: {

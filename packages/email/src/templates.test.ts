@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { PARAM } from "./render";
+import { escapeHtml, PARAM } from "./render";
 import {
 	announcementEmail,
 	messageEmail,
 	reminderEmail,
 	resetPasswordEmail,
 	verifyEmail,
+	welcomeEmail,
 } from "./templates";
 
 const site = "https://moco-pickup.com";
@@ -34,6 +35,7 @@ describe("list templates", () => {
 	const message = messageEmail({
 		subject: "Gym closed <tonight>",
 		body: "Boiler blew.\n\nSee you next week & bring a jacket.",
+		siteUrl: site,
 	});
 
 	it("escape user content", () => {
@@ -52,6 +54,20 @@ describe("list templates", () => {
 		}
 	});
 
+	it("send everyone back through their own sign-in link", () => {
+		for (const r of [announcement, reminder, message]) {
+			expect(r.html).toContain(PARAM.key);
+			expect(r.text).toContain(PARAM.key);
+			expect(r.html).not.toContain(`${site}/#rsvp`);
+			expect(r.text).not.toContain(`${site}/#rsvp`);
+		}
+	});
+
+	it("keep the permit link token-free: gym staff see it", () => {
+		expect(announcement.text).toContain(`${site}/api/permits/abc/file`);
+		expect(announcement.text).not.toContain(`${site}/api/permits/abc/file?k=`);
+	});
+
 	it("describe the game", () => {
 		expect(announcement.subject).toBe(
 			"Gym booked: Mon, Sep 14 at 9:00 PM - 10:30 PM",
@@ -59,6 +75,24 @@ describe("list templates", () => {
 		expect(announcement.text).toContain("6 of 10 open");
 		expect(reminder.subject).toBe("Tonight: 7 in, 3 spots left");
 		expect(reminder.text).toContain("Sean, Big Ray");
+	});
+});
+
+describe("welcome", () => {
+	const url = `${site}/api/auth/link?k=abc123&to=%2F%23rsvp`;
+	const welcome = welcomeEmail({ name: "Pete", url });
+
+	it("carries a concrete link, not a placeholder", () => {
+		expect(welcome.text).toContain(url);
+		expect(welcome.html).toContain(escapeHtml(url));
+		expect(welcome.html).not.toContain("{{ params");
+		expect(welcome.text).not.toContain("{{ params");
+	});
+
+	it("says the link is a key and mentions the password option", () => {
+		expect(welcome.subject).toBe("You're on the list.");
+		expect(welcome.text).toContain("don't forward it");
+		expect(welcome.text).toContain("password");
 	});
 });
 

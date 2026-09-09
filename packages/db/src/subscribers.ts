@@ -10,6 +10,12 @@ export function normalizeEmail(raw: string): string {
 	return raw.trim().toLowerCase();
 }
 
+/** A fresh sign-in token: 32 hex characters, unguessable. */
+export function newLinkToken(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
+	return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export type UpsertSubscriberInput = {
 	email: string;
 	name?: string | null;
@@ -56,6 +62,7 @@ export async function upsertSubscriber(
 			name,
 			status: "active",
 			unsubscribeToken: crypto.randomUUID(),
+			linkToken: newLinkToken(),
 			source: input.source,
 			userId: input.userId ?? null,
 		});
@@ -83,6 +90,7 @@ export type ActiveSubscriber = {
 	email: string;
 	name: string | null;
 	unsubscribeToken: string;
+	linkToken: string | null;
 };
 
 /** Everyone who should get the next list email, oldest first. */
@@ -95,11 +103,90 @@ export async function listActiveSubscribers(
 			email: subscriber.email,
 			name: subscriber.name,
 			unsubscribeToken: subscriber.unsubscribeToken,
+			linkToken: subscriber.linkToken,
 		})
 		.from(subscriber)
 		.where(eq(subscriber.status, "active"))
 		.orderBy(asc(subscriber.createdAt))
 		.all();
+}
+
+/** The sign-in token for a subscriber, generating one if the row predates them. */
+export async function ensureLinkToken(db: Db, id: string): Promise<string> {
+	const row = await db
+		.select({ linkToken: subscriber.linkToken })
+		.from(subscriber)
+		.where(eq(subscriber.id, id))
+		.get();
+	if (row?.linkToken) return row.linkToken;
+	const token = newLinkToken();
+	await db
+		.update(subscriber)
+		.set({ linkToken: token })
+		.where(eq(subscriber.id, id));
+	return token;
+}
+
+export type LinkSubscriber = {
+	id: string;
+	email: string;
+	name: string | null;
+	status: "active" | "unsubscribed";
+	userId: string | null;
+};
+
+/** Who a sign-in link belongs to. Null when the token means nothing. */
+export async function findSubscriberByLinkToken(
+	db: Db,
+	token: string,
+): Promise<LinkSubscriber | null> {
+	const row = await db
+		.select({
+			id: subscriber.id,
+			email: subscriber.email,
+			name: subscriber.name,
+			status: subscriber.status,
+			userId: subscriber.userId,
+		})
+		.from(subscriber)
+		.where(eq(subscriber.linkToken, token))
+		.get();
+	return row ?? null;
+}
+
+/** Point a subscriber row at the account it belongs to. Idempotent. */
+export async function attachSubscriberUser(
+	db: Db,
+	id: string,
+	userId: string,
+): Promise<void> {
+	await db.update(subscriber).set({ userId }).where(eq(subscriber.id, id));
+}
+
+/** An address that is still on the list, by email. */
+export async function findActiveSubscriberByEmail(
+	db: Db,
+	email: string,
+): Promise<{ id: string; linkSentAt: Date | null } | null> {
+	const row = await db
+		.select({ id: subscriber.id, linkSentAt: subscriber.linkSentAt })
+		.from(subscriber)
+		.where(
+			and(
+				eq(subscriber.email, normalizeEmail(email)),
+				eq(subscriber.status, "active"),
+			),
+		)
+		.get();
+	return row ?? null;
+}
+
+/** Record that a sign-in link just went out, for the request cooldown. */
+export async function markLinkSent(db: Db, id: string): Promise<void> {
+	await db
+		.update(subscriber)
+		.set({ linkSentAt: new Date() })
+		.where(eq(subscriber.id, id));
 }
 
 /** Take the owner of a token off the list. Null when the token is unknown. */

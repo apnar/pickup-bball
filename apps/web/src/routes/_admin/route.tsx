@@ -7,18 +7,16 @@ import {
 } from "@tanstack/react-router";
 
 import PageTitle from "@/components/page-title";
-import { getUser } from "@/functions/get-user";
 
 export const Route = createFileRoute("/_admin")({
-	beforeLoad: async () => {
-		const session = await getUser();
-		if (!session) {
-			throw redirect({ to: "/login" });
+	beforeLoad: ({ context, location }) => {
+		if (!context.session) {
+			throw redirect({ to: "/login", search: { redirect: location.href } });
 		}
-		if (!isAdmin(session.user)) {
+		if (!isAdmin(context.session.user)) {
 			throw redirect({ to: "/" });
 		}
-		return { session };
+		return { session: context.session };
 	},
 	component: AdminLayout,
 });

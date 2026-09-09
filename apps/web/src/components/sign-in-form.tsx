@@ -1,25 +1,24 @@
+import { safeReturnPath } from "@pickup-bball/email/links";
 import { Blueprint } from "@pickup-bball/ui/components/blueprint";
 import { Button } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
 import { Label } from "@pickup-bball/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
+import {
+	Link,
+	useNavigate,
+	useRouter,
+	useSearch,
+} from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
 
 import { authClient } from "@/lib/auth-client";
 
-import Loader from "./loader";
-
-export default function SignInForm({
-	onSwitchToSignUp,
-}: {
-	onSwitchToSignUp: () => void;
-}) {
-	const navigate = useNavigate({
-		from: "/",
-	});
-	const { isPending } = authClient.useSession();
+export default function SignInForm() {
+	const navigate = useNavigate();
+	const router = useRouter();
+	const { redirect } = useSearch({ from: "/login" });
 
 	const form = useForm({
 		defaultValues: {
@@ -33,11 +32,12 @@ export default function SignInForm({
 					password: value.password,
 				},
 				{
-					onSuccess: () => {
-						navigate({
-							to: "/dashboard",
-						});
-						toast.success("Sign in successful");
+					onSuccess: async () => {
+						// The session hangs off the root route's context, so the
+						// router has to fetch it again before we move.
+						await router.invalidate();
+						navigate({ to: safeReturnPath(redirect) });
+						toast.success("You're in.");
 					},
 					onError: (error) => {
 						toast.error(error.error.message || error.error.statusText);
@@ -52,10 +52,6 @@ export default function SignInForm({
 			}),
 		},
 	});
-
-	if (isPending) {
-		return <Loader />;
-	}
 
 	return (
 		<Blueprint className="mx-auto w-full max-w-md p-6">
@@ -137,9 +133,9 @@ export default function SignInForm({
 			</form>
 
 			<div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-				<Button variant="link" onClick={onSwitchToSignUp}>
-					Need an account? Sign Up
-				</Button>
+				<span className="text-[13px] text-neutral-700 leading-6">
+					No account? Sean makes those.
+				</span>
 				<Link
 					to="/forgot-password"
 					className="text-[13px] text-steel-700 leading-6"

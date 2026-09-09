@@ -26,6 +26,9 @@ export function useRsvps() {
 	const addMutation = useMutation(
 		orpc.rsvp.add.mutationOptions({ onSuccess, onError }),
 	);
+	const addMeMutation = useMutation(
+		orpc.rsvp.addMe.mutationOptions({ onSuccess, onError }),
+	);
 	const toggleMutation = useMutation(
 		orpc.rsvp.toggle.mutationOptions({ onSuccess, onError }),
 	);
@@ -34,7 +37,15 @@ export function useRsvps() {
 
 	return {
 		headcount: query.data ?? null,
-		isPending: addMutation.isPending || toggleMutation.isPending,
+		isPending:
+			addMutation.isPending ||
+			addMeMutation.isPending ||
+			toggleMutation.isPending,
+		/** One tap: the signed-in player puts themselves in. */
+		addMe: () => {
+			if (!gameId) return Promise.resolve(undefined);
+			return addMeMutation.mutateAsync({ gameId });
+		},
 		add: (name: string) => {
 			if (!gameId) return Promise.resolve(undefined);
 			return addMutation.mutateAsync({ gameId, name });

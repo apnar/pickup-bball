@@ -185,9 +185,25 @@ function AdminEmailPage() {
 	const addSubscriber = useMutation(
 		orpc.subscribers.add.mutationOptions({
 			onSuccess: (result) => {
-				toast.success(result.created ? "Added." : "Already there; kept.");
+				const added = result.created ? "Added" : "Already there; kept";
+				toast.success(
+					result.emailed
+						? `${added}, and their link is ${result.dryRun ? "in the server log" : "on its way"}.`
+						: `${added}. The welcome email did not go out.`,
+				);
 				setNewEmail("");
 				setNewName("");
+				refreshAll();
+			},
+			onError,
+		}),
+	);
+	const sendLink = useMutation(
+		orpc.subscribers.sendLink.mutationOptions({
+			onSuccess: (result) => {
+				toast.success(
+					result.dryRun ? "Link printed to the server log." : "Link sent.",
+				);
 				refreshAll();
 			},
 			onError,
@@ -472,11 +488,13 @@ function AdminEmailPage() {
 						<table className="w-full min-w-[560px] border-collapse text-sm">
 							<thead>
 								<tr>
-									{["Name", "Email", "Source", "Status", ""].map((h, i) => (
-										<th key={h || `col-${i}`} className={thClass}>
-											{h}
-										</th>
-									))}
+									{["Name", "Email", "Source", "Status", "Link", ""].map(
+										(h, i) => (
+											<th key={h || `col-${i}`} className={thClass}>
+												{h}
+											</th>
+										),
+									)}
 								</tr>
 							</thead>
 							<tbody>
@@ -497,8 +515,26 @@ function AdminEmailPage() {
 												<span className={chip(active ? "steel" : "neutral")}>
 													{active ? "Active" : "Unsubscribed"}
 												</span>
+												{s.userId ? (
+													<span className={`ml-2 ${chip("steel")}`}>
+														Signed in
+													</span>
+												) : null}
+											</td>
+											<td className="whitespace-nowrap text-[13px] text-neutral-700">
+												{s.linkSentAt ? when(s.linkSentAt) : "Never sent"}
 											</td>
 											<td className="whitespace-nowrap text-right">
+												{active ? (
+													<Button
+														variant="ghost"
+														size="xs"
+														disabled={sendLink.isPending}
+														onClick={() => sendLink.mutate({ id: s.id })}
+													>
+														Send link
+													</Button>
+												) : null}
 												{active && nextAnnounced ? (
 													<Button
 														variant="ghost"
@@ -540,7 +576,7 @@ function AdminEmailPage() {
 						</table>
 						{subscribers.data?.length === 0 ? (
 							<p className="mt-3 text-[15px] text-neutral-700 leading-6">
-								Nobody yet. Add the regulars, or send them to the home page.
+								Nobody yet. Add the regulars; each one gets their link by email.
 							</p>
 						) : null}
 					</div>

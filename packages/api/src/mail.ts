@@ -1,8 +1,22 @@
 import { emailSend } from "@pickup-bball/db/schema/email";
 import { rsvp } from "@pickup-bball/db/schema/rsvp";
-import { listActiveSubscribers } from "@pickup-bball/db/subscribers";
-import type { ListRecipient, ListResult, Rendered } from "@pickup-bball/email";
-import { announcementEmail, reminderEmail } from "@pickup-bball/email";
+import {
+	ensureLinkToken,
+	listActiveSubscribers,
+	markLinkSent,
+} from "@pickup-bball/db/subscribers";
+import type {
+	ListRecipient,
+	ListResult,
+	Rendered,
+	SendOutcome,
+} from "@pickup-bball/email";
+import {
+	announcementEmail,
+	messageEmail,
+	reminderEmail,
+	welcomeEmail,
+} from "@pickup-bball/email";
 import { getMailer, siteUrl } from "@pickup-bball/email/worker";
 import { and, asc, eq } from "drizzle-orm";
 
@@ -20,6 +34,15 @@ export function unsubscribeUrl(token: string): string {
 	return `${siteUrl()}/api/unsubscribe/${token}`;
 }
 
+/**
+ * The concrete sign-in link for one person. Unlike the links inside list
+ * templates, this one is not a Brevo placeholder: it goes into an email
+ * addressed to exactly one subscriber.
+ */
+export function welcomeLinkUrl(token: string): string {
+	return `${siteUrl()}/api/auth/link?k=${token}&to=%2F%23rsvp`;
+}
+
 export function permitUrl(game: GameSummary): string | null {
 	return game.permit ? `${siteUrl()}/api/permits/${game.permit.id}/file` : null;
 }
@@ -35,6 +58,13 @@ export function renderAnnouncement(game: GameSummary): Rendered {
 		inCount: game.inCount,
 		capacity: CAPACITY,
 	});
+}
+
+export function renderMessage(input: {
+	subject: string;
+	body: string;
+}): Rendered {
+	return messageEmail({ ...input, siteUrl: siteUrl() });
 }
 
 export async function renderReminder(
@@ -88,6 +118,7 @@ export async function sendToList(
 		email: s.email,
 		name: s.name,
 		unsubscribeUrl: unsubscribeUrl(s.unsubscribeToken),
+		linkToken: s.linkToken,
 	}));
 	const result = await getMailer().sendList(recipients, opts.rendered, {
 		tags: [opts.kind],
@@ -105,4 +136,24 @@ export async function sendToList(
 		sentBy: opts.sentBy ?? null,
 	});
 	return { ...result, sendId };
+}
+
+/**
+ * Send someone their way in: the welcome email, carrying their own sign-in
+ * link. Used when an admin adds them, resends a link, or someone asks for
+ * one from the login page.
+ */
+export async function sendWelcome(
+	db: Db,
+	subscriberId: string,
+	person: { email: string; name: string | null },
+): Promise<SendOutcome> {
+	const token = await ensureLinkToken(db, subscriberId);
+	const outcome = await getMailer().sendOne(
+		{ email: person.email, name: person.name },
+		welcomeEmail({ name: person.name, url: welcomeLinkUrl(token) }),
+		{ tags: ["welcome"] },
+	);
+	if (outcome.ok) await markLinkSent(db, subscriberId);
+	return outcome;
 }

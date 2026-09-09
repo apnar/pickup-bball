@@ -10,6 +10,7 @@ function recipients(n: number): ListRecipient[] {
 		email: `p${i}@example.com`,
 		name: i % 2 ? `Player ${i}` : null,
 		unsubscribeUrl: `https://moco-pickup.com/api/unsubscribe/t${i}`,
+		linkToken: `k${i}`,
 	}));
 }
 
@@ -34,6 +35,25 @@ describe("createMailer", () => {
 		expect(String(log.mock.calls[0]?.[0])).toContain("Subject: S");
 	});
 
+	it("fills the placeholders in a dry-run log so the link is clickable", async () => {
+		const log = vi.fn();
+		const mailer = createMailer({ apiKey: undefined, sender, log });
+		const withLink = {
+			subject: "S",
+			html: "<p>x</p>",
+			text: "Sign in: https://moco-pickup.com/api/auth/link?k={{ params.key }}",
+		};
+		await mailer.sendList(recipients(2), withLink);
+		expect(String(log.mock.calls[0]?.[0])).toContain(
+			"https://moco-pickup.com/api/auth/link?k=k0",
+		);
+		log.mockClear();
+		await mailer.sendOne({ email: "a@example.com" }, withLink, {
+			params: { key: "solo" },
+		});
+		expect(String(log.mock.calls[0]?.[0])).toContain("link?k=solo");
+	});
+
 	it("batches 100 recipients into calls of 99 and 1 with per-recipient params", async () => {
 		const fetchImpl = vi.fn(
 			async () =>
@@ -54,6 +74,7 @@ describe("createMailer", () => {
 			params: {
 				name: "Player 1",
 				unsubscribeUrl: "https://moco-pickup.com/api/unsubscribe/t1",
+				key: "k1",
 			},
 		});
 		expect(bodies[0].headers).toBeUndefined();

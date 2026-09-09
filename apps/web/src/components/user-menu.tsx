@@ -9,18 +9,19 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@pickup-bball/ui/components/dropdown-menu";
-import { Skeleton } from "@pickup-bball/ui/components/skeleton";
-import { Link, useNavigate } from "@tanstack/react-router";
+import {
+	Link,
+	useNavigate,
+	useRouteContext,
+	useRouter,
+} from "@tanstack/react-router";
 
 import { authClient } from "@/lib/auth-client";
 
 export default function UserMenu() {
 	const navigate = useNavigate();
-	const { data: session, isPending } = authClient.useSession();
-
-	if (isPending) {
-		return <Skeleton className="h-8 w-16" />;
-	}
+	const router = useRouter();
+	const { session } = useRouteContext({ from: "__root__" });
 
 	if (!session) {
 		return (
@@ -71,10 +72,11 @@ export default function UserMenu() {
 							onClick={() => {
 								authClient.signOut({
 									fetchOptions: {
-										onSuccess: () => {
-											navigate({
-												to: "/",
-											});
+										onSuccess: async () => {
+											// The session came from the root route; make the
+											// router go and notice it is gone.
+											await router.invalidate();
+											navigate({ to: "/" });
 										},
 									},
 								});

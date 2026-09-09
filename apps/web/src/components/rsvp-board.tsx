@@ -1,7 +1,7 @@
 import { Blueprint, Corners } from "@pickup-bball/ui/components/blueprint";
 import { Button, buttonVariants } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 import { useState } from "react";
 
 import SectionKicker from "@/components/section-kicker";
@@ -25,7 +25,8 @@ function subline(inCount: number, open: number) {
 }
 
 export default function RsvpBoard() {
-	const { headcount, isPending, add, toggle } = useRsvps();
+	const { headcount, isPending, add, addMe, toggle } = useRsvps();
+	const { session } = useRouteContext({ from: "__root__" });
 	const [draft, setDraft] = useState("");
 
 	if (!headcount) {
@@ -54,7 +55,7 @@ export default function RsvpBoard() {
 		);
 	}
 
-	const { game, capacity, rsvps } = headcount;
+	const { game, capacity, me, rsvps } = headcount;
 	const inCount = rsvps.filter((r) => r.isIn).length;
 	const open = capacity - inCount;
 	const fillPct = Math.min(100, Math.round((inCount / capacity) * 100));
@@ -114,8 +115,15 @@ export default function RsvpBoard() {
 							style={{ width: `${fillPct}%` }}
 						/>
 					</div>
+					<div className="mt-6 max-w-[480px]">
+						<Button disabled={isPending || Boolean(me)} onClick={() => addMe()}>
+							{me
+								? `You're in, ${session?.user.name}.`
+								: `I'm in as ${session?.user.name}`}
+						</Button>
+					</div>
 					<form
-						className="mt-6 flex max-w-[480px] gap-2.5"
+						className="mt-4 flex max-w-[480px] gap-2.5"
 						onSubmit={async (e) => {
 							e.preventDefault();
 							if (!draft.trim()) return;
@@ -129,15 +137,15 @@ export default function RsvpBoard() {
 					>
 						<Input
 							type="text"
-							placeholder="Your name (real one)"
-							aria-label="Your name"
+							placeholder="Add a friend"
+							aria-label="Add a friend"
 							value={draft}
 							maxLength={40}
 							onChange={(e) => setDraft(e.target.value)}
 							className="flex-1"
 						/>
-						<Button type="submit" disabled={isPending}>
-							I'm in
+						<Button type="submit" variant="outline" disabled={isPending}>
+							Add
 						</Button>
 					</form>
 					<p className="mt-2 text-[13px] text-neutral-700 leading-5">
@@ -175,6 +183,7 @@ export default function RsvpBoard() {
 								</span>
 								<span className="font-semibold text-xs uppercase tracking-[0.08em] opacity-85">
 									{r.isIn ? "In" : "Out · excuse pending"}
+									{r.id === me ? " · you" : ""}
 								</span>
 							</button>
 						))}

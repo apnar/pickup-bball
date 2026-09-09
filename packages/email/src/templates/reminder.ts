@@ -1,4 +1,5 @@
 import type { Rendered } from "../brevo";
+import { emailLink } from "../links";
 import {
 	button,
 	factsTable,
@@ -27,7 +28,7 @@ function headline(inCount: number, open: number): string {
 
 /** Game-day nudge with the current headcount. Sent by the cron, once per game. */
 export function reminderEmail(input: ReminderInput): Rendered {
-	const rsvpUrl = `${input.siteUrl}/#rsvp`;
+	const rsvpUrl = emailLink(input.siteUrl, "/#rsvp");
 	const open = Math.max(0, input.capacity - input.inCount);
 	const spots = `${open} spot${open === 1 ? "" : "s"} left`;
 	const names =

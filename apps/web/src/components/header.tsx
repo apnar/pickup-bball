@@ -1,5 +1,5 @@
 import { buttonVariants } from "@pickup-bball/ui/components/button";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouteContext } from "@tanstack/react-router";
 
 import { SITE_NAME } from "@/content/run";
 
@@ -9,6 +9,10 @@ const linkClass =
 	"text-sm text-ink no-underline hover:text-steel-700 aria-[current=page]:text-steel-700";
 
 export default function Header() {
+	// From the root route's context: no extra fetch, no skeleton flash, and
+	// the server renders the same nav the browser will.
+	const { session } = useRouteContext({ from: "__root__" });
+
 	return (
 		<header className="border-divider border-b">
 			<nav className="mx-auto flex w-full max-w-[1100px] flex-wrap items-center gap-x-4 gap-y-1.5 px-[clamp(20px,5vw,72px)] py-2.5">
@@ -21,22 +25,31 @@ export default function Header() {
 				<Link to="/" activeOptions={{ exact: true }} className={linkClass}>
 					This week
 				</Link>
-				<Link to="/schedule" className={linkClass}>
-					Schedule
-				</Link>
-				<Link to="/roster" className={linkClass}>
-					Roster
-				</Link>
+				{session ? (
+					<>
+						<Link to="/schedule" className={linkClass}>
+							Schedule
+						</Link>
+						<Link to="/roster" className={linkClass}>
+							Roster
+						</Link>
+					</>
+				) : null}
 				<Link to="/rules" className={linkClass}>
 					Rules
 				</Link>
-				<Link
-					to="/"
-					hash="rsvp"
-					className={buttonVariants({ size: "sm", className: "no-underline" })}
-				>
-					I'm in
-				</Link>
+				{session ? (
+					<Link
+						to="/"
+						hash="rsvp"
+						className={buttonVariants({
+							size: "sm",
+							className: "no-underline",
+						})}
+					>
+						I'm in
+					</Link>
+				) : null}
 				<UserMenu />
 			</nav>
 		</header>
