@@ -85,7 +85,19 @@ A game exists only once a gym has been rented. Admins book games and file the pe
 pnpm --filter web exec wrangler d1 execute DB --remote --command "update user set role='admin' where email='you@example.com'"
 ```
 
-  Drop `--remote` to do the same against the local database.
+  Drop `--remote` to do the same against the local database. The role is read from the session cookie cache, so it takes up to five minutes to apply; signing out and back in is quicker.
+
+- **The first account on an empty database** cannot come from the site: sign-up is closed and adding people needs an admin. Make yourself a subscriber by hand, then click your own link. Nothing else is a special case; this is the ordinary join, done with SQL instead of the admin page.
+
+```bash
+# 1. Put yourself on the list, with a token to get in with.
+pnpm --filter web exec wrangler d1 execute DB --remote --command "insert into subscriber (id, email, name, status, unsubscribe_token, link_token, source) values (lower(hex(randomblob(16))), 'you@example.com', 'Your Name', 'active', lower(hex(randomblob(16))), lower(hex(randomblob(16))), 'admin')"
+
+# 2. Read the token back.
+pnpm --filter web exec wrangler d1 execute DB --remote --command "select link_token from subscriber where email='you@example.com'"
+```
+
+  Open `https://moco-pickup.com/api/auth/link?k=<that token>`. It creates your account, signs you in, and is the same link the welcome email would have carried. Then run the `update user set role='admin'` command above and add everyone else from `/admin/email`.
 - **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games. Both are players-only.
 - **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
 - **Headcount** rows in `rsvp` belong to a game (`game_id`). A player taps "I'm in as {name}" to put themselves on the sheet (`rsvp.addMe`, which claims the row by `user_id` and marks it "you"), and can type a friend's name in as well. Deleting a game deletes its headcount.
@@ -152,7 +164,7 @@ One-time setup:
 5. Apply migrations to production: `pnpm run db:migrate:remote`.
 6. Deploy: `pnpm run deploy`.
 7. Set `BETTER_AUTH_URL` in `apps/web/wrangler.jsonc` `vars` to the URL wrangler printed (or your custom domain) and deploy again.
-8. Ask an existing admin to add your address on `/admin/email`, then promote yourself with the command in "Games, permits and admins". On a brand new database, insert the first `subscriber` row by hand.
+8. Get yourself an account: on a brand new database, follow "The first account on an empty database" in "Games, permits and admins". Otherwise ask an existing admin to add your address on `/admin/email` and click the link they send you.
 
 ### Automatic deploys
 
