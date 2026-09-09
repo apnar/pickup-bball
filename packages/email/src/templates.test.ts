@@ -17,7 +17,7 @@ describe("list templates", () => {
 		dateLabel: "Mon, Sep 14",
 		timeLabel: "9:00 PM - 10:30 PM",
 		location: "Shady Grove <Middle> School",
-		notes: "Park by the side door & bring both shirts",
+		notes: "Park by the side door & bring water",
 		permitUrl: `${site}/api/permits/abc/file`,
 		siteUrl: site,
 		inCount: 4,

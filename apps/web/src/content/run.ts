@@ -91,7 +91,7 @@ export const roster = [
 		pos: "Forward",
 		since: "2019",
 		report:
-			"Brings both shirts every week and reminds you that he brought both shirts.",
+			"Boxes out every single possession and lets you know he boxed out every single possession.",
 		status: "Regular",
 	},
 	{
@@ -142,7 +142,7 @@ export const rules = [
 	{
 		num: "03",
 		title: "Twos and threes, to 15",
-		body: 'Win by two. There is no "one more" once someone has left to get their kid.',
+		body: "Win by two. The last game of the night is the exception: it ends when the gym does, not when somebody gets to 15.",
 	},
 	{
 		num: "04",
@@ -156,7 +156,12 @@ export const rules = [
 	},
 	{
 		num: "06",
-		title: "Two shirts. Water. Show up.",
-		body: "Dark and light. If you show up in gray you are on skins, and nobody wants that for you.",
+		title: "Four on four, nothing over half",
+		body: "Short-handed nights, the ball gets dribbled across half court. No long outlet to the guy who quit on defense and left early.",
+	},
+	{
+		num: "07",
+		title: "The colored bars are in",
+		body: "Those fat painted stripes down the sidelines play as in bounds. The baseline is still the baseline, so do not get inventive back there.",
 	},
 ] as const;

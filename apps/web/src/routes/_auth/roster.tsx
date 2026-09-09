@@ -73,8 +73,7 @@ function RosterPage() {
 				</table>
 			</div>
 			<p className="mt-4 text-[13px] text-neutral-700 leading-6">
-				Want on the list? Show up twenty times. Bring both shirts. Don't ask
-				Sean about the hip.
+				Want on the list? Show up twenty times. Don't ask Sean about the hip.
 			</p>
 		</section>
 	);

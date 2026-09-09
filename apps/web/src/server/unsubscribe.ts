@@ -67,7 +67,7 @@ unsubscribe.get("/:token", async (c) => {
 		return html(
 			page({
 				heading: "Back on the list.",
-				body: `${escapeHtml(row.email)} will get the Monday night emails again. Welcome back; bring both shirts.`,
+				body: `${escapeHtml(row.email)} will get the Monday night emails again. Welcome back; the ball is still Sean's.`,
 				home,
 			}),
 		);

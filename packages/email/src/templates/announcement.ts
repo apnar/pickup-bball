@@ -49,7 +49,7 @@ export function announcementEmail(input: AnnouncementInput): Rendered {
 			notesHtml,
 			button("Put my name in", rsvpUrl),
 			permitHtml,
-			muted("Two shirts. Water. Show up."),
+			muted("Water. Show up. That is the entire equipment list."),
 		].join("\n"),
 		footerHtml: listFooter(),
 	});
@@ -67,7 +67,7 @@ export function announcementEmail(input: AnnouncementInput): Rendered {
 		`Put your name in: ${rsvpUrl}`,
 		...(input.permitUrl ? [`Permit: ${input.permitUrl}`] : []),
 		"",
-		"Two shirts. Water. Show up.",
+		"Water. Show up. That is the entire equipment list.",
 		"",
 		listFooterText(),
 	].join("\n");
