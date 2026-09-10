@@ -4,9 +4,9 @@ import { publicProcedure } from "../index";
 import { accountRouter } from "./account";
 import { gamesRouter } from "./games";
 import { mailRouter } from "./mail";
+import { peopleRouter } from "./people";
 import { permitsRouter } from "./permits";
 import { rsvpRouter } from "./rsvp";
-import { subscribersRouter } from "./subscribers";
 
 export const appRouter = {
 	healthCheck: publicProcedure.handler(() => {
@@ -16,7 +16,7 @@ export const appRouter = {
 	games: gamesRouter,
 	permits: permitsRouter,
 	rsvp: rsvpRouter,
-	subscribers: subscribersRouter,
+	people: peopleRouter,
 	mail: mailRouter,
 };
 export type AppRouter = typeof appRouter;

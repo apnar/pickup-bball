@@ -1,5 +1,6 @@
 import { sendDueReminders } from "@pickup-bball/api/jobs/reminders";
 import { createDb } from "@pickup-bball/db";
+import { sweepExpiredSuspensions } from "@pickup-bball/db/people";
 import { env } from "@pickup-bball/env/server";
 import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
 
@@ -31,7 +32,8 @@ export default {
 
 	/**
 	 * Cron Trigger (wrangler.jsonc `triggers.crons`, hourly). Sends the
-	 * game-day reminder once it is morning at the gym. Test locally with
+	 * game-day reminder once it is morning at the gym, and tidies suspensions
+	 * that have run out. Test locally with
 	 * `curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"`.
 	 */
 	async scheduled(
@@ -39,10 +41,20 @@ export default {
 		_env: unknown,
 		ctx: { waitUntil(promise: Promise<unknown>): void },
 	) {
+		const now = new Date(controller.scheduledTime);
 		ctx.waitUntil(
-			sendDueReminders(createDb(), new Date(controller.scheduledTime)).then(
+			sendDueReminders(createDb(), now).then(
 				(result) => console.log("reminders", JSON.stringify(result)),
 				(error) => console.error("reminders failed", error),
+			),
+		);
+		// Housekeeping only: an expired suspension already counts as active
+		// everywhere it matters, so a missed run costs nothing but a stale
+		// "until <a date last month>" on the admin page.
+		ctx.waitUntil(
+			sweepExpiredSuspensions(createDb(), now).then(
+				(count) => count > 0 && console.log(`suspensions expired: ${count}`),
+				(error) => console.error("suspension sweep failed", error),
 			),
 		);
 	},

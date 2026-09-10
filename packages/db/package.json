@@ -10,7 +10,9 @@
 		}
 	},
 	"scripts": {
-		"db:generate": "drizzle-kit generate"
+		"db:generate": "drizzle-kit generate",
+		"test": "vitest run",
+		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@pickup-bball/env": "workspace:*",
@@ -20,6 +22,7 @@
 	"devDependencies": {
 		"@pickup-bball/config": "workspace:*",
 		"drizzle-kit": "^0.31.10",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "^4.1.4"
 	}
 }

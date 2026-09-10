@@ -7,6 +7,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { BreakForm, describeBreak } from "@/components/break-form";
 import SectionKicker from "@/components/section-kicker";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
@@ -131,18 +132,33 @@ function PasswordRow() {
 function RouteComponent() {
 	const { session } = Route.useRouteContext();
 	const queryClient = useQueryClient();
-	const subscription = useQuery(orpc.subscribers.mine.queryOptions());
+	const me = useQuery(orpc.people.me.queryOptions());
+	const [taking, setTaking] = useState(false);
 	const [resent, setResent] = useState(false);
 
-	const setMine = useMutation(
-		orpc.subscribers.setMine.mutationOptions({
-			onSuccess: (data) => {
-				queryClient.setQueryData(orpc.subscribers.mine.queryKey(), data);
-				toast.success(
-					data.subscribed ? "Game emails on." : "Game emails off. Noted.",
-				);
+	const refresh = () => {
+		queryClient.invalidateQueries({ queryKey: orpc.people.key() });
+		queryClient.invalidateQueries({ queryKey: orpc.rsvp.key() });
+	};
+	const onError = (error: Error) => toast.error(error.message);
+
+	const takeBreak = useMutation(
+		orpc.people.suspend.mutationOptions({
+			onSuccess: () => {
+				setTaking(false);
+				refresh();
+				toast.success("Spot held. Go get healthy.");
 			},
-			onError: (error: Error) => toast.error(error.message),
+			onError,
+		}),
+	);
+	const comeBack = useMutation(
+		orpc.people.unsuspend.mutationOptions({
+			onSuccess: () => {
+				refresh();
+				toast.success("You're back on. See you Monday.");
+			},
+			onError,
 		}),
 	);
 
@@ -161,13 +177,15 @@ function RouteComponent() {
 	};
 
 	const verified = session?.user.emailVerified ?? false;
-	const subscribed = subscription.data?.subscribed ?? false;
+	const away = me.data?.status === "suspended";
 
 	return (
 		<section className="pt-18 pb-15">
 			<h1 className="-ml-[0.05em] font-heading text-[clamp(40px,6vw,80px)] uppercase leading-[1.02] tracking-[0.01em]">
 				<span className="block">Welcome, {session?.user.name}.</span>
-				<span className="block text-steel-700">You're on the list.</span>
+				<span className="block text-steel-700">
+					{away ? "You're taking a break." : "You're on the list."}
+				</span>
 			</h1>
 			<div className="mt-10">
 				<SectionKicker className="mb-5">05 · Your account</SectionKicker>
@@ -196,27 +214,51 @@ function RouteComponent() {
 							</span>
 						)}
 					</dd>
-					<dt className="kicker text-steel-700">Game emails</dt>
+					<dt className="kicker text-steel-700">Status</dt>
 					<dd className="m-0 flex flex-wrap items-baseline gap-x-3">
 						<span>
-							{subscription.isLoading
+							{me.isLoading
 								? "Checking..."
-								: subscribed
-									? "On. Gym booked, game-day headcount."
-									: "Off. You find out from the group chat."}
+								: away
+									? `${describeBreak({
+											suspendedUntil: me.data?.suspendedUntil ?? null,
+											reason: me.data?.reason ?? null,
+										})}. No game emails, no spot on the sheet.`
+									: "Active. Gym booked, game-day headcount, and a spot on the sheet."}
 						</span>
-						{subscription.isLoading ? null : (
+						{me.isLoading ? null : away ? (
 							<Button
 								variant="link"
 								size="xs"
-								disabled={setMine.isPending}
-								onClick={() => setMine.mutate({ subscribed: !subscribed })}
+								disabled={comeBack.isPending}
+								onClick={() => comeBack.mutate({})}
 							>
-								{subscribed ? "Turn off" : "Turn on"}
+								I'm back
+							</Button>
+						) : (
+							<Button
+								variant="link"
+								size="xs"
+								onClick={() => setTaking((v) => !v)}
+							>
+								{taking ? "Never mind" : "Take a break..."}
 							</Button>
 						)}
 					</dd>
+					{taking && !away ? (
+						<dd className="col-span-2 m-0">
+							<BreakForm
+								pending={takeBreak.isPending}
+								onCancel={() => setTaking(false)}
+								onSubmit={(input) => takeBreak.mutate(input)}
+							/>
+						</dd>
+					) : null}
 					<PasswordRow />
+					<dd className="col-span-2 m-0 text-[13px] text-neutral-600 leading-5">
+						Done for good rather than for a month? Tell an admin — leaving the
+						group is the one thing that does not happen from here.
+					</dd>
 				</dl>
 			</Blueprint>
 		</section>

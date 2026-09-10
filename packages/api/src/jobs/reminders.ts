@@ -88,6 +88,9 @@ export async function sendReminderFor(
 			kind: "reminder",
 			gameId,
 			rendered,
+			// Active only, always. Somebody nursing a calf does not need a 9 AM
+			// headcount for a game they already said they are missing.
+			audience: "active",
 		});
 		if (!result) {
 			// Nobody on the list: leave the lock so we do not retry hourly.

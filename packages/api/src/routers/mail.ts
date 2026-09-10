@@ -1,10 +1,6 @@
 import { ORPCError } from "@orpc/server";
-import { emailSend, subscriber } from "@pickup-bball/db/schema/email";
+import { EMAIL_AUDIENCES, emailSend } from "@pickup-bball/db/schema/email";
 import { game } from "@pickup-bball/db/schema/game";
-import {
-	ensureLinkToken,
-	upsertSubscriber,
-} from "@pickup-bball/db/subscribers";
 import { getMailer } from "@pickup-bball/email/worker";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -15,11 +11,12 @@ import { adminProcedure } from "../index";
 import { sendReminderFor } from "../jobs/reminders";
 import {
 	countRecipients,
+	recipientCounts,
 	renderAnnouncement,
 	renderMessage,
 	renderReminder,
 	sendToList,
-	unsubscribeUrl,
+	tokensFor,
 } from "../mail";
 
 const gameIdSchema = z.object({ gameId: z.string().min(1) });
@@ -27,6 +24,13 @@ const gameIdSchema = z.object({ gameId: z.string().min(1) });
 const messageSchema = z.object({
 	subject: z.string().trim().min(1, "Subject?").max(120),
 	body: z.string().trim().min(1, "Say something.").max(5000),
+	/**
+	 * Who hears it. "active" is everybody on the list; "everyone" also reaches
+	 * the people who have stepped away, for the rare thing they would want
+	 * anyway ("the season is moving to Thursdays"). Neither reaches anybody
+	 * deactivated. Game announcements and reminders never offer the choice.
+	 */
+	audience: z.enum(EMAIL_AUDIENCES).default("active"),
 });
 
 async function requireGame(db: Context["db"], id: string) {
@@ -45,7 +49,7 @@ export const mailRouter = {
 	/** Whether emails actually leave the building (BREVO_API_KEY is set). */
 	status: adminProcedure.handler(async ({ context }) => ({
 		dryRun: getMailer().dryRun,
-		recipientCount: await countRecipients(context.db),
+		counts: await recipientCounts(context.db),
 	})),
 
 	previewAnnouncement: adminProcedure
@@ -66,7 +70,7 @@ export const mailRouter = {
 	sendAnnouncement: adminProcedure
 		.input(
 			gameIdSchema.extend({
-				subscriberIds: z.array(z.string().min(1)).min(1).optional(),
+				personIds: z.array(z.string().min(1)).min(1).optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -76,10 +80,10 @@ export const mailRouter = {
 				gameId: found.id,
 				rendered: renderAnnouncement(found),
 				sentBy: context.session.user.id,
-				onlySubscriberIds: input.subscriberIds,
+				onlyPersonIds: input.personIds,
 			});
 			if (!result) nobody();
-			if (!input.subscriberIds && result.sent > 0) {
+			if (!input.personIds && result.sent > 0) {
 				await context.db
 					.update(game)
 					.set({ announcedAt: new Date() })
@@ -118,7 +122,7 @@ export const mailRouter = {
 		.input(messageSchema)
 		.handler(async ({ context, input }) => ({
 			...renderMessage(input),
-			recipientCount: await countRecipients(context.db),
+			recipientCount: await countRecipients(context.db, input.audience),
 		})),
 
 	/** Send an ad hoc message to the list, or only to yourself as a test. */
@@ -128,31 +132,16 @@ export const mailRouter = {
 			const rendered = renderMessage(input);
 			if (input.toSelf) {
 				const me = context.session.user;
-				// The test copy has to render its links like the real thing, so
-				// the admin needs a subscriber row of their own with a token.
-				const mine = await upsertSubscriber(context.db, {
-					email: me.email,
-					name: me.name,
-					source: "admin",
-					userId: me.id,
-					reactivate: false,
-				});
-				const key = await ensureLinkToken(context.db, mine.id);
-				const row = await context.db
-					.select({ unsubscribeToken: subscriber.unsubscribeToken })
-					.from(subscriber)
-					.where(eq(subscriber.id, mine.id))
-					.get();
+				// The test copy has to render its links like the real thing. The
+				// admin is a person like everybody else now, so their own tokens
+				// are already sitting on their row.
+				const { key, unsubscribeUrl } = await tokensFor(context.db, me.id);
 				const outcome = await getMailer().sendOne(
 					{ email: me.email, name: me.name },
 					rendered,
 					{
 						tags: ["message", "test"],
-						params: {
-							name: me.name,
-							unsubscribeUrl: unsubscribeUrl(row?.unsubscribeToken ?? ""),
-							key,
-						},
+						params: { name: me.name, unsubscribeUrl, key },
 					},
 				);
 				if (!outcome.ok) {
@@ -172,6 +161,7 @@ export const mailRouter = {
 				kind: "message",
 				rendered,
 				sentBy: context.session.user.id,
+				audience: input.audience,
 			});
 			if (!result) nobody();
 			return result;

@@ -1,6 +1,6 @@
 import { createDb } from "@pickup-bball/db";
+import { stampTokens } from "@pickup-bball/db/people";
 import * as schema from "@pickup-bball/db/schema/auth";
-import { upsertSubscriber } from "@pickup-bball/db/subscribers";
 import { resetPasswordEmail, verifyEmail } from "@pickup-bball/email";
 import { getMailer } from "@pickup-bball/email/worker";
 import { env } from "@pickup-bball/env/server";
@@ -57,18 +57,19 @@ export function createAuth() {
 		databaseHooks: {
 			user: {
 				create: {
-					// New accounts join the list. A past unsubscribe is respected.
+					// Every person needs a sign-in token and a footer token, and
+					// making that a property of the table rather than of one call
+					// site means no code path can produce somebody with no way in.
+					// Better Auth drops fields it does not know about, so these
+					// cannot be set in the insert itself.
 					after: async (user) => {
 						try {
-							await upsertSubscriber(db, {
-								email: user.email,
-								name: user.name,
-								source: "signup",
-								userId: user.id,
-								reactivate: false,
-							});
+							await stampTokens(db, user.id);
 						} catch (error) {
-							console.error("subscriber upsert failed", error);
+							// Hooks run after the transaction commits, so a throw
+							// here would surface as a failed sign-up with a real row
+							// already written. ensureLinkToken picks up the slack.
+							console.error("token stamp failed", error);
 						}
 					},
 				},

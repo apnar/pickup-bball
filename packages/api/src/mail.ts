@@ -1,10 +1,12 @@
+import {
+	type Audience,
+	ensureLinkToken,
+	ensureUnsubscribeToken,
+	listRecipients,
+	markLinkSent,
+} from "@pickup-bball/db/people";
 import { emailSend } from "@pickup-bball/db/schema/email";
 import { rsvp } from "@pickup-bball/db/schema/rsvp";
-import {
-	ensureLinkToken,
-	listActiveSubscribers,
-	markLinkSent,
-} from "@pickup-bball/db/subscribers";
 import type {
 	ListRecipient,
 	ListResult,
@@ -88,14 +90,33 @@ export async function renderReminder(
 	});
 }
 
-/** How many people a list send would reach right now. */
-export async function countRecipients(db: Db): Promise<number> {
-	return (await listActiveSubscribers(db)).length;
+/** How many people a send of this audience would reach right now. */
+export async function countRecipients(
+	db: Db,
+	audience: Audience = "active",
+): Promise<number> {
+	return (await listRecipients(db, audience)).length;
+}
+
+/** Both numbers at once, for the audience picker. */
+export async function recipientCounts(
+	db: Db,
+): Promise<{ active: number; everyone: number }> {
+	const [active, everyone] = await Promise.all([
+		countRecipients(db, "active"),
+		countRecipients(db, "everyone"),
+	]);
+	return { active, everyone };
 }
 
 /**
- * Send one rendered email to the active list (or a subset by id) and record
- * the outcome in `email_send`. Returns null when nobody would receive it.
+ * Send one rendered email to the list (or a subset by id) and record the
+ * outcome in `email_send`. Returns null when nobody would receive it.
+ *
+ * `audience` defaults to "active", which is what game email always wants:
+ * somebody nursing a calf does not need to hear that a gym is booked. Only
+ * the ad-hoc message ever passes "everyone", and nothing reaches anybody
+ * deactivated -- `listRecipients` will not return them at all.
  */
 export async function sendToList(
 	db: Db,
@@ -104,21 +125,23 @@ export async function sendToList(
 		gameId?: string | null;
 		rendered: Rendered;
 		sentBy?: string | null;
-		onlySubscriberIds?: string[];
+		audience?: Audience;
+		onlyPersonIds?: string[];
 	},
 ): Promise<ListSendResult | null> {
-	let subscribers = await listActiveSubscribers(db);
-	if (opts.onlySubscriberIds) {
-		const wanted = new Set(opts.onlySubscriberIds);
-		subscribers = subscribers.filter((s) => wanted.has(s.id));
+	const audience = opts.audience ?? "active";
+	let people = await listRecipients(db, audience);
+	if (opts.onlyPersonIds) {
+		const wanted = new Set(opts.onlyPersonIds);
+		people = people.filter((p) => wanted.has(p.id));
 	}
-	if (subscribers.length === 0) return null;
+	if (people.length === 0) return null;
 
-	const recipients: ListRecipient[] = subscribers.map((s) => ({
-		email: s.email,
-		name: s.name,
-		unsubscribeUrl: unsubscribeUrl(s.unsubscribeToken),
-		linkToken: s.linkToken,
+	const recipients: ListRecipient[] = people.map((p) => ({
+		email: p.email,
+		name: p.name,
+		unsubscribeUrl: unsubscribeUrl(p.unsubscribeToken ?? ""),
+		linkToken: p.linkToken,
 	}));
 	const result = await getMailer().sendList(recipients, opts.rendered, {
 		tags: [opts.kind],
@@ -129,6 +152,7 @@ export async function sendToList(
 		kind: opts.kind,
 		gameId: opts.gameId ?? null,
 		subject: opts.rendered.subject,
+		audience,
 		recipientCount: result.attempted,
 		failedCount: result.attempted - result.sent,
 		messageIds: JSON.stringify(result.messageIds),
@@ -145,15 +169,27 @@ export async function sendToList(
  */
 export async function sendWelcome(
 	db: Db,
-	subscriberId: string,
+	userId: string,
 	person: { email: string; name: string | null },
 ): Promise<SendOutcome> {
-	const token = await ensureLinkToken(db, subscriberId);
+	const token = await ensureLinkToken(db, userId);
 	const outcome = await getMailer().sendOne(
 		{ email: person.email, name: person.name },
 		welcomeEmail({ name: person.name, url: welcomeLinkUrl(token) }),
 		{ tags: ["welcome"] },
 	);
-	if (outcome.ok) await markLinkSent(db, subscriberId);
+	if (outcome.ok) await markLinkSent(db, userId);
 	return outcome;
+}
+
+/** The pair of tokens a one-off personalised send needs. */
+export async function tokensFor(
+	db: Db,
+	userId: string,
+): Promise<{ key: string; unsubscribeUrl: string }> {
+	const [key, token] = await Promise.all([
+		ensureLinkToken(db, userId),
+		ensureUnsubscribeToken(db, userId),
+	]);
+	return { key, unsubscribeUrl: unsubscribeUrl(token) };
 }

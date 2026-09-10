@@ -1,13 +1,18 @@
 import { createDb } from "@pickup-bball/db";
-import { unsubscribeByEmail } from "@pickup-bball/db/subscribers";
+import { suspendByEmail } from "@pickup-bball/db/people";
 import { env } from "@pickup-bball/env/server";
 import { Hono } from "hono";
 
 /**
- * Brevo transactional webhook. Brevo adds its own List-Unsubscribe header
- * to every email, so people can leave through their mail app without ever
- * touching the site; this keeps the `subscriber` table in step with that,
- * and also drops addresses that bounce hard or mark us as spam.
+ * Brevo transactional webhook. Brevo adds its own List-Unsubscribe header to
+ * every email, so people can stop the mail from their mail app without ever
+ * touching the site; this keeps the roster in step with that, and also drops
+ * addresses that bounce hard or mark us as spam.
+ *
+ * All of it lands as an open-ended break, never a deactivation: not being
+ * able to reach somebody is not grounds for throwing them out of the group,
+ * and only an admin does that anyway. The reason says what happened so it is
+ * obvious on the admin page that this was Brevo and not the person.
  *
  * Registered with `auth: { type: "bearer", token: BREVO_WEBHOOK_SECRET }`
  * (see README "Email"). Events arrive one per request, or as an array when
@@ -15,12 +20,12 @@ import { Hono } from "hono";
  */
 export const brevoWebhook = new Hono();
 
-/** Payload `event` values that mean "stop emailing this address". */
-const DROP_EVENTS = new Set([
-	"unsubscribed",
-	"hard_bounce",
-	"spam",
-	"invalid_email",
+/** Payload `event` values that mean "stop emailing this address", and why. */
+const DROP_EVENTS = new Map([
+	["unsubscribed", "Unsubscribed from their mail app."],
+	["hard_bounce", "Email is bouncing."],
+	["spam", "Marked us as spam."],
+	["invalid_email", "Address is not valid."],
 ]);
 
 type BrevoEvent = { event?: string; email?: string; reason?: string };
@@ -44,10 +49,13 @@ brevoWebhook.post("/", async (c) => {
 	const db = createDb();
 	let dropped = 0;
 	for (const e of events) {
-		if (!e.email || !e.event || !DROP_EVENTS.has(e.event)) continue;
-		if (await unsubscribeByEmail(db, e.email)) {
+		const reason = e.event ? DROP_EVENTS.get(e.event) : undefined;
+		if (!e.email || !reason) continue;
+		// Only somebody currently active, so a repeat event cannot clobber a
+		// reason they wrote themselves.
+		if (await suspendByEmail(db, e.email, { reason })) {
 			dropped++;
-			console.log(`brevo webhook: ${e.event} -> unsubscribed ${e.email}`);
+			console.log(`brevo webhook: ${e.event} -> break for ${e.email}`);
 		}
 	}
 	return c.json({ received: events.length, dropped });

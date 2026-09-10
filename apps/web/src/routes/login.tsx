@@ -25,7 +25,7 @@ function RequestLink() {
 	const [asked, setAsked] = useState(false);
 
 	const request = useMutation(
-		orpc.subscribers.requestLink.mutationOptions({
+		orpc.people.requestLink.mutationOptions({
 			onSuccess: () => setAsked(true),
 			onError: (error: Error) => toast.error(error.message),
 		}),
@@ -79,6 +79,12 @@ function RouteComponent() {
 				<p className="mx-auto mb-6 w-full max-w-md border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 leading-5">
 					That link is not on the sheet. Ask Sean for a fresh one, or use the
 					form below.
+				</p>
+			) : null}
+			{error === "revoked" ? (
+				<p className="mx-auto mb-6 w-full max-w-md border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 leading-5">
+					That account is deactivated, so its links no longer work. If that is
+					news to you, talk to Sean.
 				</p>
 			) : null}
 			<SignInForm />

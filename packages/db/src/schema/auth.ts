@@ -7,27 +7,93 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
-export const user = sqliteTable("user", {
-	id: text("id").primaryKey(),
-	name: text("name").notNull(),
-	email: text("email").notNull().unique(),
-	emailVerified: integer("email_verified", { mode: "boolean" })
-		.default(false)
-		.notNull(),
-	image: text("image"),
-	/** Better Auth admin plugin: "admin" or "user" (null counts as user). */
-	role: text("role"),
-	banned: integer("banned", { mode: "boolean" }).default(false),
-	banReason: text("ban_reason"),
-	banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
-	createdAt: integer("created_at", { mode: "timestamp_ms" })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.notNull(),
-	updatedAt: integer("updated_at", { mode: "timestamp_ms" })
-		.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
+/** How somebody first landed on the list. */
+export const PERSON_SOURCES = ["site", "admin", "signup"] as const;
+export type PersonSource = (typeof PERSON_SOURCES)[number];
+
+/**
+ * The three states a person can be in.
+ *
+ * - `active` — gets the emails, holds a spot, signs in.
+ * - `suspended` — stepped away. No game email unless an admin deliberately
+ *   picks the "everyone" audience, and no RSVP, but they can still sign in,
+ *   which is how they come back. Set by the person themselves or an admin,
+ *   and lifts on its own date when there is one.
+ * - `deactivated` — out of the group. No email of any kind, no way in. Only
+ *   an admin can put somebody here, and only an admin can undo it.
+ */
+export const PERSON_STATUSES = ["active", "suspended", "deactivated"] as const;
+export type PersonStatus = (typeof PERSON_STATUSES)[number];
+
+/** Who moved somebody off active. `mail` is Brevo telling us through the webhook. */
+export const STATUS_ACTORS = ["self", "admin", "mail"] as const;
+export type StatusActor = (typeof STATUS_ACTORS)[number];
+
+/**
+ * Everybody. This one table is the roster, the mailing list and the accounts:
+ * there is no second list of people to keep in step with it.
+ */
+export const user = sqliteTable(
+	"user",
+	{
+		id: text("id").primaryKey(),
+		name: text("name").notNull(),
+		email: text("email").notNull().unique(),
+		emailVerified: integer("email_verified", { mode: "boolean" })
+			.default(false)
+			.notNull(),
+		image: text("image"),
+		/** Better Auth admin plugin: "admin" or "user" (null counts as user). */
+		role: text("role"),
+		/**
+		 * Better Auth's own gate, which it checks on its sign-in routes. We do
+		 * not set it by hand: it is a mirror of `status = 'deactivated'`, written
+		 * in the same statement, so the framework blocks the password door while
+		 * `status` stays the one thing the app reads. Nullable, because 0000
+		 * created it without NOT NULL — never compare it with `= 0`.
+		 */
+		banned: integer("banned", { mode: "boolean" }).default(false),
+		banReason: text("ban_reason"),
+		banExpires: integer("ban_expires", { mode: "timestamp_ms" }),
+
+		/**
+		 * Random token in every link we email this person. Clicking one signs
+		 * them in, so it is a bearer credential: never put it on a permit URL,
+		 * and never hand it to Better Auth as an additional field — those get
+		 * base64'd into a cookie the browser can read.
+		 * Nullable only because SQLite cannot add a NOT NULL unique column.
+		 */
+		linkToken: text("link_token").unique(),
+		/** When the last sign-in link was emailed, for the request cooldown. */
+		linkSentAt: integer("link_sent_at", { mode: "timestamp_ms" }),
+		/** Random token in the footer link of every list email. Same warning. */
+		unsubscribeToken: text("unsubscribe_token").unique(),
+		source: text("source", { enum: PERSON_SOURCES }).notNull().default("admin"),
+
+		status: text("status", { enum: PERSON_STATUSES })
+			.notNull()
+			.default("active"),
+		/**
+		 * Only read while suspended. Null then means "until they say otherwise";
+		 * a date in the past means the suspension is already over, which is why
+		 * nothing has to run for somebody to come back.
+		 */
+		suspendedUntil: integer("suspended_until", { mode: "timestamp_ms" }),
+		/** Their own words, usually an injury. Ours when Brevo told us. */
+		statusReason: text("status_reason"),
+		statusChangedAt: integer("status_changed_at", { mode: "timestamp_ms" }),
+		statusChangedBy: text("status_changed_by", { enum: STATUS_ACTORS }),
+
+		createdAt: integer("created_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index("user_status_idx").on(table.status)],
+);
 
 export const session = sqliteTable(
 	"session",

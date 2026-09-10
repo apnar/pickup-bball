@@ -84,13 +84,18 @@ export function muted(html: string): string {
 	return `<p style="${styles.p} ${styles.muted}">${html}</p>`;
 }
 
-/** Footer for list emails: who this is and how to leave. Uses raw placeholders. */
+/**
+ * Footer for list emails: who this is and how to step away. There is no
+ * unsubscribe-and-stay-on-the-roster any more -- email is how this group
+ * talks, so leaving the email means leaving the Mondays for a while. The
+ * link opens a form that asks for how long and why. Uses raw placeholders.
+ */
 export function listFooter(): string {
-	return `<p style="${styles.footer}">You get these because you are on the list. Links in this email sign you in, so don't forward it. Had enough? <a href="${PARAM.unsubscribeUrl}" style="${styles.link}">Unsubscribe</a> and we will pretend not to notice.</p>`;
+	return `<p style="${styles.footer}">You get these because you play. Links in this email sign you in, so don't forward it. Hurt, travelling, or just done for now? <a href="${PARAM.unsubscribeUrl}" style="${styles.link}">Take a break</a> and we will hold your spot.</p>`;
 }
 
 export function listFooterText(): string {
-	return `You get these because you are on the list.\nLinks in this email sign you in, so don't forward it.\nUnsubscribe: ${PARAM.unsubscribeUrl}`;
+	return `You get these because you play.\nLinks in this email sign you in, so don't forward it.\nHurt, travelling, or just done for now? Take a break: ${PARAM.unsubscribeUrl}`;
 }
 
 export function layout(input: {

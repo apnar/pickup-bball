@@ -104,7 +104,6 @@ function AdminEmailPage() {
 	const queryClient = useQueryClient();
 	const status = useQuery(orpc.mail.status.queryOptions());
 	const games = useQuery(orpc.games.list.queryOptions());
-	const subscribers = useQuery(orpc.subscribers.list.queryOptions());
 	const recent = useQuery(orpc.mail.recent.queryOptions());
 
 	const [preview, setPreview] = useState<
@@ -113,14 +112,13 @@ function AdminEmailPage() {
 	const [confirmKey, setConfirmKey] = useState<string | null>(null);
 	const [subject, setSubject] = useState("");
 	const [body, setBody] = useState("");
-	const [newEmail, setNewEmail] = useState("");
-	const [newName, setNewName] = useState("");
+	const [audience, setAudience] = useState<"active" | "everyone">("active");
 
 	const onError = (error: Error) => toast.error(error.message);
 	const refreshAll = () => {
 		queryClient.invalidateQueries({ queryKey: orpc.games.key() });
 		queryClient.invalidateQueries({ queryKey: orpc.mail.key() });
-		queryClient.invalidateQueries({ queryKey: orpc.subscribers.key() });
+		queryClient.invalidateQueries({ queryKey: orpc.people.key() });
 		setConfirmKey(null);
 	};
 
@@ -182,46 +180,12 @@ function AdminEmailPage() {
 			onError,
 		}),
 	);
-	const addSubscriber = useMutation(
-		orpc.subscribers.add.mutationOptions({
-			onSuccess: (result) => {
-				const added = result.created ? "Added" : "Already there; kept";
-				toast.success(
-					result.emailed
-						? `${added}, and their link is ${result.dryRun ? "in the server log" : "on its way"}.`
-						: `${added}. The welcome email did not go out.`,
-				);
-				setNewEmail("");
-				setNewName("");
-				refreshAll();
-			},
-			onError,
-		}),
-	);
-	const sendLink = useMutation(
-		orpc.subscribers.sendLink.mutationOptions({
-			onSuccess: (result) => {
-				toast.success(
-					result.dryRun ? "Link printed to the server log." : "Link sent.",
-				);
-				refreshAll();
-			},
-			onError,
-		}),
-	);
-	const removeSubscriber = useMutation(
-		orpc.subscribers.remove.mutationOptions({
-			onSuccess: () => {
-				toast.success("Removed.");
-				refreshAll();
-			},
-			onError,
-		}),
-	);
-
 	const upcoming = games.data?.upcoming ?? [];
-	const nextAnnounced = upcoming.find((g) => g.announcedAt);
-	const recipientCount = status.data?.recipientCount ?? 0;
+	const activeCount = status.data?.counts.active ?? 0;
+	const everyoneCount = status.data?.counts.everyone ?? 0;
+	/** Announcements and reminders are always active-only. */
+	const recipientCount = activeCount;
+	const messageCount = audience === "everyone" ? everyoneCount : activeCount;
 	const sending =
 		sendAnnouncement.isPending ||
 		sendReminder.isPending ||
@@ -373,7 +337,7 @@ function AdminEmailPage() {
 							className="space-y-4"
 							onSubmit={(e) => {
 								e.preventDefault();
-								previewMessage.mutate({ subject, body });
+								previewMessage.mutate({ subject, body, audience });
 							}}
 						>
 							<div className="space-y-1.5">
@@ -400,6 +364,42 @@ function AdminEmailPage() {
 									onChange={(e) => setBody(e.target.value)}
 								/>
 							</div>
+							<fieldset className="space-y-1.5 border-0 p-0">
+								<legend className="kicker mb-1.5 text-steel-700">
+									Who hears it
+								</legend>
+								<label className="mr-5 text-sm">
+									<input
+										type="radio"
+										name="audience"
+										className="mr-1.5"
+										checked={audience === "active"}
+										onChange={() => {
+											setAudience("active");
+											setPreview(null);
+										}}
+									/>
+									Active ({activeCount})
+								</label>
+								<label className="text-sm">
+									<input
+										type="radio"
+										name="audience"
+										className="mr-1.5"
+										checked={audience === "everyone"}
+										onChange={() => {
+											setAudience("everyone");
+											setPreview(null);
+										}}
+									/>
+									Everyone ({everyoneCount})
+								</label>
+								<p className="mt-1 text-[12px] text-neutral-600 leading-5">
+									{audience === "everyone"
+										? "Also reaches people taking a break. For the rare thing they would want anyway."
+										: "Everybody on the list. People taking a break sit this one out."}
+								</p>
+							</fieldset>
 							<div className="flex flex-wrap gap-2">
 								<Button type="submit" variant="outline" size="sm">
 									Preview
@@ -410,7 +410,12 @@ function AdminEmailPage() {
 									size="sm"
 									disabled={!subject || !body || sending}
 									onClick={() =>
-										sendMessage.mutate({ subject, body, toSelf: true })
+										sendMessage.mutate({
+											subject,
+											body,
+											audience,
+											toSelf: true,
+										})
 									}
 								>
 									Send to me first
@@ -422,15 +427,20 @@ function AdminEmailPage() {
 									disabled={preview?.key !== "message" || sending}
 									onClick={() => {
 										if (confirmKey === "message") {
-											sendMessage.mutate({ subject, body, toSelf: false });
+											sendMessage.mutate({
+												subject,
+												body,
+												audience,
+												toSelf: false,
+											});
 										} else {
 											setConfirmKey("message");
 										}
 									}}
 								>
 									{confirmKey === "message"
-										? `Really send to ${recipientCount}`
-										: `Send to everyone (${recipientCount})`}
+										? `Really send to ${messageCount}`
+										: `Send it (${messageCount})`}
 								</Button>
 							</div>
 						</form>
@@ -448,140 +458,7 @@ function AdminEmailPage() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-				<div>
-					<span className="kicker mb-3 block text-steel-700">Subscribers</span>
-					<form
-						className="mb-4 flex flex-wrap items-end gap-3"
-						onSubmit={(e) => {
-							e.preventDefault();
-							addSubscriber.mutate({
-								email: newEmail,
-								name: newName || undefined,
-							});
-						}}
-					>
-						<div className="min-w-[220px] flex-1 space-y-1.5">
-							<Label htmlFor="new-email">Email</Label>
-							<Input
-								id="new-email"
-								type="email"
-								required
-								value={newEmail}
-								onChange={(e) => setNewEmail(e.target.value)}
-							/>
-						</div>
-						<div className="min-w-[160px] space-y-1.5">
-							<Label htmlFor="new-name">Name</Label>
-							<Input
-								id="new-name"
-								maxLength={40}
-								value={newName}
-								onChange={(e) => setNewName(e.target.value)}
-							/>
-						</div>
-						<Button type="submit" size="sm" disabled={addSubscriber.isPending}>
-							Add
-						</Button>
-					</form>
-					<div className="overflow-x-auto">
-						<table className="w-full min-w-[560px] border-collapse text-sm">
-							<thead>
-								<tr>
-									{["Name", "Email", "Source", "Status", "Link", ""].map(
-										(h, i) => (
-											<th key={h || `col-${i}`} className={thClass}>
-												{h}
-											</th>
-										),
-									)}
-								</tr>
-							</thead>
-							<tbody>
-								{(subscribers.data ?? []).map((s) => {
-									const active = s.status === "active";
-									const removeKey = `remove:${s.id}`;
-									return (
-										<tr
-											key={s.id}
-											className="border-ink/8 border-b [&>td]:px-2 [&>td]:py-2"
-										>
-											<td className="whitespace-nowrap font-heading font-semibold text-lg uppercase tracking-[0.02em]">
-												{s.name ?? <span className="text-neutral-500">—</span>}
-											</td>
-											<td>{s.email}</td>
-											<td className="text-[13px] capitalize">{s.source}</td>
-											<td>
-												<span className={chip(active ? "steel" : "neutral")}>
-													{active ? "Active" : "Unsubscribed"}
-												</span>
-												{s.userId ? (
-													<span className={`ml-2 ${chip("steel")}`}>
-														Signed in
-													</span>
-												) : null}
-											</td>
-											<td className="whitespace-nowrap text-[13px] text-neutral-700">
-												{s.linkSentAt ? when(s.linkSentAt) : "Never sent"}
-											</td>
-											<td className="whitespace-nowrap text-right">
-												{active ? (
-													<Button
-														variant="ghost"
-														size="xs"
-														disabled={sendLink.isPending}
-														onClick={() => sendLink.mutate({ id: s.id })}
-													>
-														Send link
-													</Button>
-												) : null}
-												{active && nextAnnounced ? (
-													<Button
-														variant="ghost"
-														size="xs"
-														disabled={sending}
-														onClick={() =>
-															sendAnnouncement.mutate({
-																gameId: nextAnnounced.id,
-																subscriberIds: [s.id],
-															})
-														}
-													>
-														Resend announcement
-													</Button>
-												) : null}
-												<Button
-													variant={
-														confirmKey === removeKey ? "destructive" : "ghost"
-													}
-													size="xs"
-													disabled={removeSubscriber.isPending}
-													onClick={() => {
-														if (confirmKey === removeKey) {
-															removeSubscriber.mutate({ id: s.id });
-														} else {
-															setConfirmKey(removeKey);
-														}
-													}}
-												>
-													{confirmKey === removeKey
-														? "Really remove"
-														: "Remove"}
-												</Button>
-											</td>
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
-						{subscribers.data?.length === 0 ? (
-							<p className="mt-3 text-[15px] text-neutral-700 leading-6">
-								Nobody yet. Add the regulars; each one gets their link by email.
-							</p>
-						) : null}
-					</div>
-				</div>
-
+			<div>
 				<div>
 					<span className="kicker mb-3 block text-steel-700">Recent sends</span>
 					{(recent.data ?? []).length === 0 ? (
@@ -605,6 +482,11 @@ function AdminEmailPage() {
 										<span className="capitalize">{row.kind}</span> ·{" "}
 										{row.recipientCount} recipient
 										{row.recipientCount === 1 ? "" : "s"}
+										{row.audience === "everyone" ? (
+											<span className={`ml-2 ${chip("neutral")}`}>
+												Everyone
+											</span>
+										) : null}
 										{row.failedCount > 0 ? (
 											<span className={`ml-2 ${chip("warn")}`}>
 												{row.failedCount} failed

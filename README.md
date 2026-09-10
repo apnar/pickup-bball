@@ -67,11 +67,21 @@ The site is two sites wearing one coat.
 - **Anonymous visitors** get the pitch: Monday nights, somewhere in Montgomery County, the rules, and how to get in. No court, no tip-off time, no booked dates, no headcount, no names.
 - **Players** — anyone with a session — get everything: the next game with its court and time, the schedule, the roster, and one-tap RSVP under their own name.
 
-Nobody signs themselves up. Public sign-up is closed (`emailAndPassword.disableSignUp`), and there is no join form. An admin adds an address on `/admin/email`, the welcome email goes out, and **every link in every email that person gets is unique to them and signs them in when clicked**. That link is a bearer token, which is why the emails say not to forward it. The one exception is the permit PDF: it is meant to be waved at gym staff, so its URL carries nothing.
+Nobody signs themselves up. Public sign-up is closed (`emailAndPassword.disableSignUp`), and there is no join form. An admin adds an address on `/admin/users`, the welcome email goes out, and **every link in every email that person gets is unique to them and signs them in when clicked**. That link is a bearer token, which is why the emails say not to forward it. The one exception is the permit PDF: it is meant to be waved at gym staff, so its URL carries nothing.
 
 Sessions last 180 days and roll forward. The session cookie caches the user for five minutes, so ordinary navigation costs no database read — and a role changed by SQL takes up to five minutes to show up.
 
-Losing access: unsubscribing from emails does not revoke it. Removing someone on `/admin/email` does, since their token goes with the row; live sessions can be revoked from `/admin/users`.
+**One list, three states.** There is a single table of people — `user` — and it is the roster, the mailing list and the accounts all at once. Every person is in exactly one state, shown and changed on `/admin/users`:
+
+| | Gets email | Can sign in | Can take a spot | Who sets it | Ends how |
+|---|---|---|---|---|---|
+| **Active** | yes | yes | yes | — | — |
+| **Suspended** | only on an explicit "everyone" send | yes | no | the person, or an admin | on its own date, or "I'm back" |
+| **Deactivated** | never | no | no | **an admin** | an admin |
+
+Both non-active states carry a reason and record who set them; a suspension can also carry a return date. There is no unsubscribe that leaves somebody on the roster: email is how this group talks, so stepping away from the email is stepping away from the Mondays, and it is temporary by default because the usual cause is a torn calf. A suspension is stored as `status = 'suspended'` plus `suspended_until`, and **a date in the past already counts as active** — `effectiveStatus` in `packages/db/src/people.ts` decides, so nobody is stranded by a cron that did not run. The hourly job only tidies the row.
+
+Losing access is deactivation, and only that: it is the one thing that sets Better Auth's `banned` (in the same statement, so the framework closes the password door), revokes every session, and makes the person's emailed links redirect to `/login?error=revoked`. Nothing is ever deleted, and an admin can undo it. Note the five-minute session cookie cache: a just-deactivated player who is already signed in keeps ordinary navigation working until it expires, though every RSVP action re-checks the database and refuses immediately.
 
 Passwords are optional. Password sign-in is still the default form on `/login` (admins use it), and any player can set one from `/dashboard`; the emailed links keep working either way. Below the sign-in form, "Email me my link" mails a fresh one to any address on the list, at most once every ten minutes, and says the same thing whether or not the address is on it.
 
@@ -87,39 +97,41 @@ pnpm --filter web exec wrangler d1 execute DB --remote --command "update user se
 
   Drop `--remote` to do the same against the local database. The role is read from the session cookie cache, so it takes up to five minutes to apply; signing out and back in is quicker.
 
-- **The first account on an empty database** cannot come from the site: sign-up is closed and adding people needs an admin. Make yourself a subscriber by hand, then click your own link. Nothing else is a special case; this is the ordinary join, done with SQL instead of the admin page.
+- **The first account on an empty database** cannot come from the site: sign-up is closed and adding people needs an admin. Write your own row, then click your own link. Nothing else is a special case; this is the ordinary join, done with SQL instead of the admin page — and because people and accounts are one table now, you can make yourself an admin in the same statement.
 
 ```bash
-# 1. Put yourself on the list, with a token to get in with.
-pnpm --filter web exec wrangler d1 execute DB --remote --command "insert into subscriber (id, email, name, status, unsubscribe_token, link_token, source) values (lower(hex(randomblob(16))), 'you@example.com', 'Your Name', 'active', lower(hex(randomblob(16))), lower(hex(randomblob(16))), 'admin')"
+# 1. Put yourself on the list, as an admin, with a token to get in with.
+pnpm --filter web exec wrangler d1 execute DB --remote --command "insert into user (id, name, email, email_verified, role, status, source, link_token, unsubscribe_token) values (lower(hex(randomblob(16))), 'Your Name', 'you@example.com', 1, 'admin', 'active', 'admin', lower(hex(randomblob(16))), lower(hex(randomblob(16))))"
 
 # 2. Read the token back.
-pnpm --filter web exec wrangler d1 execute DB --remote --command "select link_token from subscriber where email='you@example.com'"
+pnpm --filter web exec wrangler d1 execute DB --remote --command "select link_token from user where email='you@example.com'"
 ```
 
-  Open `https://moco-pickup.com/api/auth/link?k=<that token>`. It creates your account, signs you in, and is the same link the welcome email would have carried. Then run the `update user set role='admin'` command above and add everyone else from `/admin/email`.
+  Open `https://moco-pickup.com/api/auth/link?k=<that token>`. It signs you in, and is the same link the welcome email would have carried. Then add everyone else from `/admin/users`.
 - **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games. Both are players-only.
 - **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
 - **Headcount** rows in `rsvp` belong to a game (`game_id`). A player taps "I'm in as {name}" to put themselves on the sheet (`rsvp.addMe`, which claims the row by `user_id` and marks it "you"), and can type a friend's name in as well. Deleting a game deletes its headcount.
 
-The oRPC procedures are `account.*`, `games.*`, `permits.*`, `rsvp.*`, `subscribers.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+The oRPC procedures are `account.*`, `games.*`, `permits.*`, `rsvp.*`, `people.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
 
 ## Email
 
 Players hear about games by email, and get in through the links in them. Brevo delivers; the app owns the list, the templates and the log.
 
-- **Who gets it.** The `subscriber` table — the same table that decides who is a player. Admins add rows on `/admin/email` (`source = 'admin'`); older rows came from the site form (`site`) and the old public sign-up (`signup`). Each row has an `unsubscribe_token` for the unsubscribe link and a `link_token` for the sign-in links, both plain text (they ride in every email anyway). Signed-in players can flip "Game emails" off on `/dashboard`; a past unsubscribe is respected if the same address turns up again.
-- **How a link signs you in.** Every link in a list email points at `/api/auth/link?k=<link_token>&to=<path>`, a GET endpoint added by the `email-link` plugin in `packages/auth/src/link.ts`. It finds the subscriber, creates their `user` row on the first click (no password, `email_verified = 1`) or marks an existing unverified one verified, links `subscriber.user_id`, opens a session and redirects to `to` — which is checked by `safeReturnPath` and falls back to `/` for anything that points off this site. An unknown token lands on `/login?error=link`.
+- **Who gets it.** The `user` table — the same rows that decide who is a player, because there is only one list. Admins add people on `/admin/users` (`source = 'admin'`); older rows came from the site form (`site`) and the old public sign-up (`signup`). Each person has an `unsubscribe_token` for the footer link and a `link_token` for the sign-in links, both plain text (they ride in every email anyway) and both stamped by the `user.create` hook, so nobody can exist without a way in.
+- **Which audience.** Game announcements and game-day reminders always go to **active** people only; somebody nursing a calf does not need a 9 AM headcount. The ad-hoc message on `/admin/email` offers **Active** (default) or **Everyone**, where Everyone also reaches people on a break. Neither audience ever includes anybody deactivated. `email_send.audience` records which was used. The one query behind all of it is `listRecipients` in `packages/db/src/people.ts`.
+- **Stepping away.** The footer of every list email links to `/api/unsubscribe/<token>`, which no longer unsubscribes anybody on sight — it shows a form asking for how long and why, and only the POST acts. (That also fixes a real bug: mail clients prefetch link targets, which used to unsubscribe people who never clicked.) A mail client's own one-click `List-Unsubscribe-Post` sends no form at all, so it lands as an open-ended break. Players can do the same thing from `/dashboard` or straight from the RSVP board, and come back from any of them in one tap.
+- **How a link signs you in.** Every link in a list email points at `/api/auth/link?k=<link_token>&to=<path>`, a GET endpoint added by the `email-link` plugin in `packages/auth/src/link.ts`. It finds the person, marks an unverified address verified, opens a session and redirects to `to` — which is checked by `safeReturnPath` and falls back to `/` for anything that points off this site. An unknown token lands on `/login?error=link`, a deactivated one on `/login?error=revoked`. That check is written out here rather than left to the admin plugin: this endpoint mints its own session, so it is the thing standing between a revoked player and the gym address.
 - **What goes out.**
-  - *Welcome* — when an admin adds someone, or resends their link from the subscriber table, or a player asks for one from `/login`. Carries their concrete sign-in link, no unsubscribe footer.
-  - *Announcement* — when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from the subscriber table.
+  - *Welcome* — when an admin adds someone, or resends their link from `/admin/users`, or a player asks for one from `/login`. Carries their concrete sign-in link, no list footer. Somebody on a break can still ask for one: getting back in is how they come back.
+  - *Announcement* — when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from `/admin/users`.
   - *Reminder* — the morning of a game, with the current headcount and who is In. Sent by the hourly Cron Trigger once it is 9 AM Eastern (`REMINDER_LOCAL_HOUR` in `packages/api/src/jobs/reminders.ts`), at most once per game (`game.reminder_sent_at` is the lock). Admins can also send it early from `/admin/email`.
   - *Message* — anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only, with their own token substituted so the links are real.
   - *Account* — Better Auth's password reset from `/forgot-password`, and the verification email left over from the sign-up era. These carry no unsubscribe link.
 - **Sender.** `info@moco-pickup.com`, set in `packages/email/src/sender.ts`. The address and the domain's DNS records are configured in Brevo.
 - **Log.** Every list send writes one `email_send` row (kind, subject, recipient count, failures, Brevo message ids). `/admin/email` shows the last twenty.
 - **Batching and personalisation.** One Brevo request carries up to 99 personalised copies (`messageVersions`), so a full list costs one or two subrequests. Each copy gets `params.name`, `params.unsubscribeUrl` and `params.key` — the last is what turns the shared template's links into that one person's sign-in links. Without `BREVO_API_KEY` the email is printed instead, with those placeholders filled in from the first recipient so the link in the console is clickable.
-- **Brevo's own unsubscribe.** Brevo adds its own `List-Unsubscribe` header to every email (ours is replaced), so a player can also leave from the Unsubscribe button in their mail app. That puts them on Brevo's transactional blocklist, and Brevo tells the app through a webhook at `/api/brevo/webhook` (`apps/web/src/server/brevo-webhook.ts`), which flips the row to unsubscribed. Hard bounces, spam complaints and invalid addresses are dropped the same way. When an admin adds them back, the app removes them from Brevo's blocklist again.
+- **Brevo's own unsubscribe.** Brevo adds its own `List-Unsubscribe` header to every email (ours is replaced), so a player can also stop the mail from the Unsubscribe button in their mail app. That puts them on Brevo's transactional blocklist, and Brevo tells the app through a webhook at `/api/brevo/webhook` (`apps/web/src/server/brevo-webhook.ts`). All four events — unsubscribe, hard bounce, spam complaint, invalid address — put the person on an **open-ended break**, never a deactivation: not being able to reach somebody is not grounds for throwing them out, and only an admin does that. The reason is written for them ("Email is bouncing.") so the admin page shows it came from Brevo and not from them, and only somebody currently active is touched, so a repeat event cannot clobber a reason they wrote themselves. Every path back — the admin page, the dashboard, the email footer's undo — lifts Brevo's blocklist too, or they would read as active and be quietly undeliverable.
 
 Setting it up:
 
@@ -184,7 +196,7 @@ pickup-bball/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # oRPC router / business logic
 │   ├── auth/        # Better Auth configuration
-│   ├── db/          # Drizzle schema (auth, game, permit, rsvp, subscriber, email_send) and D1 migrations
+│   ├── db/          # Drizzle schema (auth/people, game, permit, rsvp, email_send) and D1 migrations
 │   ├── email/       # Brevo client, email templates and their tests
 │   └── env/         # Typed access to Worker env and bindings
 ```

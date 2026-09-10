@@ -1,8 +1,5 @@
 import type { createDb } from "@pickup-bball/db";
-import {
-	attachSubscriberUser,
-	findSubscriberByLinkToken,
-} from "@pickup-bball/db/subscribers";
+import { findPersonByLinkToken } from "@pickup-bball/db/people";
 import { safeReturnPath } from "@pickup-bball/email";
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthEndpoint } from "better-auth/api";
@@ -12,10 +9,10 @@ import * as z from "zod";
 type Db = ReturnType<typeof createDb>;
 
 /**
- * Sign-in by link. Every link we email a subscriber carries their
- * `link_token`; clicking one is how a player gets in, no password ever.
- * The token is a bearer credential, which is why the emails say not to
- * forward them and why the permit URL never carries one.
+ * Sign-in by link. Every link we email somebody carries their `link_token`;
+ * clicking one is how a player gets in, no password ever. The token is a
+ * bearer credential, which is why the emails say not to forward them and why
+ * the permit URL never carries one.
  *
  * Served at `/api/auth/link?k=<token>&to=<path>`. GET, so Better Auth's
  * origin check does not apply. The param is `k`, not `callbackURL`: that
@@ -37,39 +34,41 @@ export function emailLink({ db }: { db: Db }) {
 				async (ctx) => {
 					// context.baseURL ends in /api/auth; links land on the site itself.
 					const site = new URL(ctx.context.baseURL).origin;
-					const subscriber = await findSubscriberByLinkToken(db, ctx.query.k);
-					// Unsubscribing stops the emails, not the sign-in: an old link in
-					// the inbox still works. Removal by an admin deletes the token.
-					if (!subscriber) {
+					const person = await findPersonByLinkToken(db, ctx.query.k);
+					if (!person) {
 						throw ctx.redirect(`${site}/login?error=link`);
 					}
 
+					// Being suspended stops the emails and the headcount, not the
+					// sign-in: getting back in is exactly how somebody comes back.
+					// Deactivated is the other story, and this endpoint has to say
+					// so itself -- it mints its own session, so the admin plugin's
+					// ban check is not the thing standing between a revoked player
+					// and the gym address.
+					if (person.status === "deactivated") {
+						throw ctx.redirect(`${site}/login?error=revoked`);
+					}
+
+					// The token proved who they are; the session needs Better
+					// Auth's own shape of them, which only its adapter builds.
 					const found = await ctx.context.internalAdapter.findUserByEmail(
-						subscriber.email,
+						person.email,
 					);
 					let user = found?.user;
 					if (!user) {
-						user = await ctx.context.internalAdapter.createUser(
-							{
-								email: subscriber.email,
-								// `name` is NOT NULL; the local part will do until they
-								// tell us otherwise.
-								name: subscriber.name ?? subscriber.email.split("@")[0] ?? "",
-								emailVerified: true,
-							},
-							{ method: "email-link" },
-						);
-					} else if (!user.emailVerified) {
-						// They came from the old public sign-up and never clicked the
-						// verification email. Clicking this one proves the address.
-						// Better Auth's magic-link would wipe their password here; we
-						// keep it, because these are real players.
-						await ctx.context.internalAdapter.updateUser(user.id, {
-							emailVerified: true,
-						});
+						// A `user` row is what the token hangs off, so this cannot
+						// happen -- unless somebody deleted the row by hand.
+						throw ctx.redirect(`${site}/login?error=link`);
 					}
-
-					await attachSubscriberUser(db, subscriber.id, user.id);
+					if (!user.emailVerified) {
+						// Clicking a link we mailed to that address proves it. Better
+						// Auth's own magic-link would wipe their password here; we
+						// keep it, because these are real players.
+						user =
+							(await ctx.context.internalAdapter.updateUser(user.id, {
+								emailVerified: true,
+							})) ?? user;
+					}
 
 					// No second argument: it means "don't remember me" and would cut
 					// the session to a day.

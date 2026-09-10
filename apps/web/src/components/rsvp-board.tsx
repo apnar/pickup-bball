@@ -25,7 +25,8 @@ function subline(inCount: number, open: number) {
 }
 
 export default function RsvpBoard() {
-	const { headcount, isPending, add, addMe, toggle } = useRsvps();
+	const { headcount, isPending, add, addMe, toggle, comeBack, backPending } =
+		useRsvps();
 	const { session } = useRouteContext({ from: "__root__" });
 	const [draft, setDraft] = useState("");
 
@@ -55,7 +56,8 @@ export default function RsvpBoard() {
 		);
 	}
 
-	const { game, capacity, me, rsvps } = headcount;
+	const { game, capacity, me, viewer, rsvps } = headcount;
+	const away = viewer?.status === "suspended";
 	const inCount = rsvps.filter((r) => r.isIn).length;
 	const open = capacity - inCount;
 	const fillPct = Math.min(100, Math.round((inCount / capacity) * 100));
@@ -116,11 +118,37 @@ export default function RsvpBoard() {
 						/>
 					</div>
 					<div className="mt-6 max-w-[480px]">
-						<Button disabled={isPending || Boolean(me)} onClick={() => addMe()}>
-							{me
-								? `You're in, ${session?.user.name}.`
-								: `I'm in as ${session?.user.name}`}
-						</Button>
+						{away ? (
+							// No spot while they are out, but coming back is one tap --
+							// the button they want is the one that undoes the break.
+							<div className="border border-amber-300 bg-amber-50 px-4 py-3">
+								<p className="m-0 text-[13px] text-amber-900 leading-5">
+									You're taking a break
+									{viewer?.reason ? `: ${viewer.reason}` : ""}
+									{viewer?.suspendedUntil
+										? `, until ${new Date(viewer.suspendedUntil).toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
+										: ""}
+									. You're not on the sheet.
+								</p>
+								<Button
+									className="mt-3"
+									size="sm"
+									disabled={backPending}
+									onClick={() => comeBack()}
+								>
+									I'm back
+								</Button>
+							</div>
+						) : (
+							<Button
+								disabled={isPending || Boolean(me)}
+								onClick={() => addMe()}
+							>
+								{me
+									? `You're in, ${session?.user.name}.`
+									: `I'm in as ${session?.user.name}`}
+							</Button>
+						)}
 					</div>
 					<form
 						className="mt-4 flex max-w-[480px] gap-2.5"

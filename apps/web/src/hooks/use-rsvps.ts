@@ -32,6 +32,18 @@ export function useRsvps() {
 	const toggleMutation = useMutation(
 		orpc.rsvp.toggle.mutationOptions({ onSuccess, onError }),
 	);
+	// Ending a break belongs to the people router, but the button that does it
+	// lives on the board, so the refetch is wired up here with the rest.
+	const comeBackMutation = useMutation(
+		orpc.people.unsuspend.mutationOptions({
+			onSuccess: () => {
+				queryClient.invalidateQueries({ queryKey: orpc.rsvp.key() });
+				queryClient.invalidateQueries({ queryKey: orpc.people.key() });
+				toast.success("You're back on. Put your name in.");
+			},
+			onError,
+		}),
+	);
 
 	const gameId = query.data?.game.id;
 
@@ -54,5 +66,8 @@ export function useRsvps() {
 			if (!gameId) return;
 			toggleMutation.mutate({ gameId, id });
 		},
+		/** End your own break, from the board. */
+		comeBack: () => comeBackMutation.mutate({}),
+		backPending: comeBackMutation.isPending,
 	};
 }
