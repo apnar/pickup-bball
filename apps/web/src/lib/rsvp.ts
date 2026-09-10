@@ -89,41 +89,30 @@ export function yourLine(answer: RsvpAnswer | null, locked: boolean): string {
 }
 
 /**
- * Whether the run is actually asking for a guest, and the line that says so.
+ * How keen the run is on you bringing somebody.
  *
- * Guests are a remedy for being short, not a feature. The list gets first
- * refusal all day; only once the six o'clock call has gone out and we are
- * still under ten does bringing a body become the helpful thing to do. So the
- * box stays shut until then and explains itself, rather than sitting open and
- * quietly suggesting that every Monday needs a ringer.
+ * Guests are a remedy for being short, not a feature: the list gets asked five
+ * times over two days and usually fills itself, and a box that reads the same
+ * at five o'clock as it does at seven quietly suggests every Monday needs a
+ * ringer. Nothing here stops anybody -- you can always put a name in, and the
+ * night you already promised your brother-in-law is not the night to argue
+ * with a form. Only the tone moves.
  */
-export function guestGate(
+export function guestLine(
 	counts: Counts,
 	limits: { confirmAt: number; playAt: number; capacity: number },
 	lastCallPassed: boolean,
 	locked: boolean,
-): { open: boolean; line: string } {
+): string {
 	if (locked) {
-		return {
-			open: false,
-			line: "The count is closed. Whoever you were bringing, tell them yourself.",
-		};
+		return "The count is closed. Whoever you were bringing, tell them yourself.";
 	}
 	if (counts.in >= limits.confirmAt) {
-		return {
-			open: false,
-			line: `${counts.in} in. The list handled it, so nobody needs to go find a ringer.`,
-		};
+		return `${counts.in} in. The list handled it, so anybody you bring now is taking a regular's minutes.`;
 	}
 	if (!lastCallPassed) {
-		return {
-			open: false,
-			line: "The list gets first crack. If we are still under ten when the six o'clock call goes out, this opens and you can go find a body.",
-		};
+		return "The list has until six to sort itself out, and it usually does. Put a name in now and you are guessing.";
 	}
 	const short = limits.confirmAt - counts.in;
-	return {
-		open: true,
-		line: `Six has come and gone and we are ${short} short. Now is the night to know somebody.`,
-	};
+	return `Six has come and gone and we are ${short} short. Now is the night to know somebody.`;
 }

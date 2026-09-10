@@ -5,15 +5,17 @@ import { Input } from "@pickup-bball/ui/components/input";
 import { useState } from "react";
 
 import { useClock } from "@/hooks/use-countdown";
-import { guestGate } from "@/lib/rsvp";
+import { guestLine } from "@/lib/rsvp";
 
 /**
- * Guests: who you have brought tonight, and whether the run wants any.
+ * Guests: who you have brought tonight, and how keen the run is on more.
  *
- * The gate is the whole point of this box. See `guestGate` in lib/rsvp.ts for
- * why it is shut most of the time. Taking a guest back off is never gated --
- * a guest has no inbox and no buttons, so the person who vouched for them is
- * the only one who can say they are not coming.
+ * The box is open whenever the count is; only the line above it changes, and
+ * `guestLine` in lib/rsvp.ts says why. Nobody is stopped from putting a name
+ * in early -- the night you already promised somebody is not the night to
+ * argue with a form. Taking a guest back off is likewise never blocked: a
+ * guest has no inbox and no buttons, so whoever vouched for them is the only
+ * one who can say they are not coming.
  */
 export function GuestPanel({
 	headcount,
@@ -38,7 +40,7 @@ export function GuestPanel({
 	const now = useClock(headcount.now, lastCallAt);
 	const lastCallPassed = lastCallAt ? now >= Date.parse(lastCallAt) : false;
 
-	const gate = guestGate(
+	const line = guestLine(
 		counts,
 		{ confirmAt, playAt, capacity },
 		lastCallPassed,
@@ -73,11 +75,9 @@ export function GuestPanel({
 				</ul>
 			) : null}
 
-			<p className="mt-3 mb-0 text-[13px] text-neutral-700 leading-5">
-				{gate.line}
-			</p>
+			<p className="mt-3 mb-0 text-[13px] text-neutral-700 leading-5">{line}</p>
 
-			{gate.open ? (
+			{locked ? null : (
 				<>
 					<form
 						className="mt-4 flex gap-2.5"
@@ -130,7 +130,7 @@ export function GuestPanel({
 						-- no emails, no cancellation. That part is on you.
 					</p>
 				</>
-			) : null}
+			)}
 		</Blueprint>
 	);
 }
