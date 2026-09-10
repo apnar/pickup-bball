@@ -3,15 +3,11 @@ import { Button } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
 import { Label } from "@pickup-bball/ui/components/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-	DEFAULT_END_TIME,
-	DEFAULT_LOCATION,
-	DEFAULT_START_TIME,
-} from "@/content/run";
+import { DEFAULT_END_TIME, DEFAULT_START_TIME } from "@/content/run";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_admin/admin/")({
@@ -25,7 +21,8 @@ type FormState = {
 	date: string;
 	startTime: string;
 	endTime: string;
-	location: string;
+	/** Empty means "whichever gym we used last"; see `gymId` below. */
+	gymId: string;
 	notes: string;
 	permitId: string;
 };
@@ -34,7 +31,7 @@ const emptyForm: FormState = {
 	date: "",
 	startTime: DEFAULT_START_TIME,
 	endTime: DEFAULT_END_TIME,
-	location: DEFAULT_LOCATION,
+	gymId: "",
 	notes: "",
 	permitId: "",
 };
@@ -42,6 +39,7 @@ const emptyForm: FormState = {
 function AdminGamesPage() {
 	const queryClient = useQueryClient();
 	const games = useQuery(orpc.games.list.queryOptions());
+	const gyms = useQuery(orpc.gyms.list.queryOptions());
 	const permits = useQuery(orpc.permits.list.queryOptions());
 	const [form, setForm] = useState<FormState>(emptyForm);
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,6 +48,9 @@ function AdminGamesPage() {
 	const refresh = () => {
 		queryClient.invalidateQueries({ queryKey: orpc.games.key() });
 		queryClient.invalidateQueries({ queryKey: orpc.rsvp.key() });
+		// Booking moves "last booked", which is what the Court dropdown
+		// defaults to next time.
+		queryClient.invalidateQueries({ queryKey: orpc.gyms.key() });
 	};
 	const onError = (error: Error) => toast.error(error.message);
 
@@ -88,13 +89,43 @@ function AdminGamesPage() {
 	const set = (key: keyof FormState) => (value: string) =>
 		setForm((f) => ({ ...f, [key]: value }));
 
+	const gymList = gyms.data ?? [];
+	/** Only once we have actually asked: an empty list mid-flight is not news. */
+	const noGyms = !gyms.isPending && gymList.length === 0;
+	/**
+	 * The court we booked most recently, which is nearly always the next one
+	 * too. Derived rather than written into the form state on load: it then
+	 * follows the data by itself, so booking somewhere new makes that gym the
+	 * default for the game after it, with no effect to keep in step.
+	 */
+	const lastUsedGymId =
+		gymList
+			.filter((g) => g.lastBookedAt)
+			.sort(
+				(a, b) =>
+					new Date(b.lastBookedAt ?? 0).getTime() -
+					new Date(a.lastBookedAt ?? 0).getTime(),
+			)[0]?.id ??
+		gymList[0]?.id ??
+		"";
+	const gymId = form.gymId || lastUsedGymId;
+	const coversThisGym = (p: { gyms: { id: string }[] }) =>
+		p.gyms.some((g) => g.id === gymId);
+	const permitList = permits.data ?? [];
+	const covering = permitList.filter(coversThisGym);
+	const elsewhere = permitList.filter((p) => !coversThisGym(p));
+
 	const submit = (e: React.FormEvent) => {
 		e.preventDefault();
+		if (!gymId) {
+			toast.error("Add a gym first.");
+			return;
+		}
 		const payload = {
 			date: form.date,
 			startTime: form.startTime,
 			endTime: form.endTime || null,
-			location: form.location,
+			gymId,
 			notes: form.notes || null,
 			permitId: form.permitId || null,
 		};
@@ -109,7 +140,7 @@ function AdminGamesPage() {
 		...(games.data?.upcoming ?? []),
 		...(games.data?.past ?? []),
 	];
-	const busy = create.isPending || update.isPending;
+	const busy = create.isPending || update.isPending || gymList.length === 0;
 
 	return (
 		<div className="grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -148,16 +179,37 @@ function AdminGamesPage() {
 								onChange={(e) => set("endTime")(e.target.value)}
 							/>
 						</div>
-						<div className="space-y-1.5">
-							<Label htmlFor="location">Court</Label>
-							<Input
-								id="location"
-								required
-								maxLength={80}
-								value={form.location}
-								onChange={(e) => set("location")(e.target.value)}
-							/>
-						</div>
+					</div>
+					<div className="space-y-1.5">
+						<Label htmlFor="gymId">Court</Label>
+						{noGyms ? (
+							<p className="text-[15px] text-neutral-700 leading-6">
+								No gyms yet.{" "}
+								<Link to="/admin/gyms">Add one on the Gyms tab</Link> and it
+								shows up here.
+							</p>
+						) : (
+							<>
+								<select
+									id="gymId"
+									className={selectClass}
+									required
+									value={gymId}
+									onChange={(e) => set("gymId")(e.target.value)}
+								>
+									{gymList.map((g) => (
+										<option key={g.id} value={g.id}>
+											{g.name}
+										</option>
+									))}
+								</select>
+								{!editingId && gymId === lastUsedGymId ? (
+									<p className="text-[13px] text-neutral-700 leading-5">
+										Where we played last. Change it if the county moved us.
+									</p>
+								) : null}
+							</>
+						)}
 					</div>
 					<div className="space-y-1.5">
 						<Label htmlFor="permitId">Permit</Label>
@@ -168,11 +220,33 @@ function AdminGamesPage() {
 							onChange={(e) => set("permitId")(e.target.value)}
 						>
 							<option value="">No permit yet</option>
-							{(permits.data ?? []).map((p) => (
-								<option key={p.id} value={p.id}>
-									{p.label} · {p.fileName}
-								</option>
-							))}
+							{/* Every permit stays pickable -- coverage is what the paper
+							    says, and the paper is occasionally wrong -- but the ones
+							    that rent this court are the ones you want. */}
+							{covering.length > 0 && elsewhere.length > 0 ? (
+								<>
+									<optgroup label="Covers this court">
+										{covering.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label} · {p.fileName}
+											</option>
+										))}
+									</optgroup>
+									<optgroup label="Other permits">
+										{elsewhere.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label} · {p.fileName}
+											</option>
+										))}
+									</optgroup>
+								</>
+							) : (
+								permitList.map((p) => (
+									<option key={p.id} value={p.id}>
+										{p.label} · {p.fileName}
+									</option>
+								))
+							)}
 						</select>
 					</div>
 					<div className="space-y-1.5">
@@ -238,7 +312,7 @@ function AdminGamesPage() {
 											{g.dateLabel}
 										</td>
 										<td className="tnum whitespace-nowrap">{g.timeLabel}</td>
-										<td>{g.location}</td>
+										<td>{g.gym.name}</td>
 										<td className="tnum">{g.inCount}</td>
 										<td className="text-[13px]">
 											{g.permit ? g.permit.label : "None"}
@@ -253,7 +327,7 @@ function AdminGamesPage() {
 														date: g.date,
 														startTime: g.startTime,
 														endTime: g.endTime ?? "",
-														location: g.location,
+														gymId: g.gym.id,
 														notes: g.notes ?? "",
 														permitId: g.permit?.id ?? "",
 													});

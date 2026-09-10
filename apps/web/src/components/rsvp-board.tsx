@@ -75,7 +75,7 @@ export default function RsvpBoard() {
 					{game.timeLabel}
 				</span>
 				<span className="text-[15px] text-neutral-700 leading-6">
-					{game.location}
+					{game.gym.name}
 				</span>
 				{game.permit ? (
 					<a
@@ -94,10 +94,15 @@ export default function RsvpBoard() {
 					<span className="kicker text-neutral-600">No permit attached</span>
 				)}
 			</div>
-			{game.notes ? (
-				<p className="-mt-4 mb-8 max-w-[60ch] text-[15px] text-neutral-700 leading-6">
-					{game.notes}
-				</p>
+			{game.gym.address || game.gym.notes || game.notes ? (
+				<div className="-mt-4 mb-8 max-w-[60ch] space-y-1 text-[15px] text-neutral-700 leading-6">
+					{game.gym.address ? (
+						<p className="text-ink">{game.gym.address}</p>
+					) : null}
+					{/* How to get in, kept on the gym so it is right every week. */}
+					{game.gym.notes ? <p>{game.gym.notes}</p> : null}
+					{game.notes ? <p>{game.notes}</p> : null}
+				</div>
 			) : null}
 			<div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-x-[clamp(24px,5vw,96px)]">
 				<div>

@@ -8,6 +8,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 import { user } from "./auth";
+import { gym } from "./gym";
 import { permit } from "./permit";
 
 /** A booked run. Only exists once a gym has been rented. */
@@ -20,7 +21,15 @@ export const game = sqliteTable(
 		/** HH:MM, 24-hour. */
 		startTime: text("start_time").notNull(),
 		endTime: text("end_time"),
-		location: text("location").notNull(),
+		/**
+		 * The court. Required: a game is a rented gym at a time, and there is
+		 * no such thing as one without a place. `restrict` rather than
+		 * `set null` for the same reason -- a gym with games on it cannot be
+		 * deleted, and the router says so in words before D1 has to.
+		 */
+		gymId: text("gym_id")
+			.notNull()
+			.references(() => gym.id, { onDelete: "restrict" }),
 		notes: text("notes"),
 		permitId: text("permit_id").references(() => permit.id, {
 			onDelete: "set null",
@@ -43,5 +52,6 @@ export const game = sqliteTable(
 	(table) => [
 		uniqueIndex("game_date_time_uidx").on(table.date, table.startTime),
 		index("game_date_idx").on(table.date),
+		index("game_gym_idx").on(table.gymId),
 	],
 );

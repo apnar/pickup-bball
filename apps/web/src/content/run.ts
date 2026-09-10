@@ -4,9 +4,6 @@
 
 export const SITE_NAME = "Sean's Monday Night Run";
 
-/** Prefilled court when an admin books a game. */
-export const DEFAULT_LOCATION = "Shady Grove Middle School";
-
 /** Prefilled tip-off time (24-hour) when an admin books a game. */
 export const DEFAULT_START_TIME = "21:00";
 

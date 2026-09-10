@@ -43,6 +43,13 @@
 			"when": 1789004209569,
 			"tag": "0005_unify_people",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "6",
+			"when": 1789006359146,
+			"tag": "0006_gyms",
+			"breakpoints": true
 		}
 	]
 }

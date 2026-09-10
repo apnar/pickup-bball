@@ -44,7 +44,17 @@ function GameTable({ games, muted }: { games: Game[]; muted?: boolean }) {
 							</td>
 							<td className="tnum whitespace-nowrap">{g.timeLabel}</td>
 							<td>
-								{g.location}
+								{g.gym.name}
+								{g.gym.address ? (
+									<span className="block text-[13px] text-neutral-700">
+										{g.gym.address}
+									</span>
+								) : null}
+								{g.gym.notes ? (
+									<span className="block text-[13px] text-neutral-700">
+										{g.gym.notes}
+									</span>
+								) : null}
 								{g.notes ? (
 									<span className="block text-[13px] text-neutral-700">
 										{g.notes}

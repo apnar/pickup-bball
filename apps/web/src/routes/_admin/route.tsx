@@ -29,12 +29,15 @@ function AdminLayout() {
 		<section className="pt-18 pb-15">
 			<PageTitle line1="Front office." line2="Book the gym. File the permit." />
 			<p className="mt-7 mb-10 max-w-[60ch] text-base leading-6">
-				Games only exist once a court is rented. Put the date in, attach the
-				permit, and the headcount opens on the home page.
+				Games only exist once a court is rented. Add the gym once, put the date
+				in, attach the permit, and the headcount opens on the home page.
 			</p>
 			<nav className="mb-8 flex gap-6 border-divider border-b">
 				<Link to="/admin" activeOptions={{ exact: true }} className={tabClass}>
 					Games
+				</Link>
+				<Link to="/admin/gyms" className={tabClass}>
+					Gyms
 				</Link>
 				<Link to="/admin/permits" className={tabClass}>
 					Permits

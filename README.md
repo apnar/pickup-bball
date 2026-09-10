@@ -87,7 +87,7 @@ Passwords are optional. Password sign-in is still the default form on `/login` (
 
 ## Games, permits and admins
 
-A game exists only once a gym has been rented. Admins book games and file the permit PDFs; players see the schedule and the next game's headcount.
+A game exists only once a gym has been rented. Admins keep the list of courts, book games on them and file the permit PDFs; players see the schedule and the next game's headcount.
 
 - **Admins** are accounts with `role = 'admin'` (Better Auth's admin plugin). Promote the first one with a SQL command, then use the Users tab on `/admin` to promote others:
 
@@ -108,11 +108,12 @@ pnpm --filter web exec wrangler d1 execute DB --remote --command "select link_to
 ```
 
   Open `https://moco-pickup.com/api/auth/link?k=<that token>`. It signs you in, and is the same link the welcome email would have carried. Then add everyone else from `/admin/users`.
-- **Games** live in the `game` table (date, tip-off, court, notes, optional permit). Admins manage them on `/admin`. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games. Both are players-only.
-- **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
+- **Gyms** live in the `gym` table (name, address, notes) and are managed on `/admin/gyms`. A court is written down once -- the address, and the "park by the back lot, the side door is the open one" that used to live in somebody's texts -- and every game, email and permit reads the same answer. Both are shown to players with the game, so the address is in the email they read in the car.
+- **Games** live in the `game` table (date, tip-off, `gym_id`, notes, optional permit). Admins manage them on `/admin`, where the court is a dropdown that defaults to **the gym booked most recently**, because the next game is nearly always at the last one. A game cannot exist without a gym (`gym_id` is NOT NULL), and a gym with games on it cannot be deleted until they are moved or gone. The home page shows the next game on or after today; `/schedule` lists upcoming and recent games. Both are players-only.
+- **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. On upload they also tick **which courts the permit covers** -- one piece of paper from the county often rents two gyms -- which is a set of rows in `permit_gym` and can be re-ticked later from the Courts button on any permit. Coverage is paperwork, not a booking: it sorts the permit dropdown when an admin books a game, and nothing more. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
 - **Headcount** rows in `rsvp` belong to a game (`game_id`). A player taps "I'm in as {name}" to put themselves on the sheet (`rsvp.addMe`, which claims the row by `user_id` and marks it "you"), and can type a friend's name in as well. Deleting a game deletes its headcount.
 
-The oRPC procedures are `account.*`, `games.*`, `permits.*`, `rsvp.*`, `people.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+The oRPC procedures are `account.*`, `games.*`, `gyms.*`, `permits.*`, `rsvp.*`, `people.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. Roster, rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
 
 ## Email
 
@@ -196,7 +197,7 @@ pickup-bball/
 │   ├── ui/          # Shared shadcn/ui components and styles
 │   ├── api/         # oRPC router / business logic
 │   ├── auth/        # Better Auth configuration
-│   ├── db/          # Drizzle schema (auth/people, game, permit, rsvp, email_send) and D1 migrations
+│   ├── db/          # Drizzle schema (auth/people, gym, game, permit, rsvp, email_send) and D1 migrations
 │   ├── email/       # Brevo client, email templates and their tests
 │   └── env/         # Typed access to Worker env and bindings
 ```

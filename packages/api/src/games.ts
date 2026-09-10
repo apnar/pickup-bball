@@ -1,4 +1,5 @@
 import { game } from "@pickup-bball/db/schema/game";
+import { gym } from "@pickup-bball/db/schema/gym";
 import { permit } from "@pickup-bball/db/schema/permit";
 import { rsvp } from "@pickup-bball/db/schema/rsvp";
 import { asc, desc, eq, gte, lt, sql } from "drizzle-orm";
@@ -8,27 +9,37 @@ import { formatGameDate, formatGameTime, todayInRunTimezone } from "./run";
 
 type Db = Context["db"];
 
-/** Base query: games with their permit summary and current In count. */
+/** Base query: games with their gym, permit summary and current In count. */
 function selectGames(db: Db) {
-	return db
-		.select({
-			id: game.id,
-			date: game.date,
-			startTime: game.startTime,
-			endTime: game.endTime,
-			location: game.location,
-			notes: game.notes,
-			announcedAt: game.announcedAt,
-			reminderSentAt: game.reminderSentAt,
-			permit: {
-				id: permit.id,
-				label: permit.label,
-				fileName: permit.fileName,
-			},
-			inCount: sql<number>`(select count(*) from ${rsvp} where ${rsvp.gameId} = ${game.id} and ${rsvp.isIn} = 1)`,
-		})
-		.from(game)
-		.leftJoin(permit, eq(game.permitId, permit.id));
+	return (
+		db
+			.select({
+				id: game.id,
+				date: game.date,
+				startTime: game.startTime,
+				endTime: game.endTime,
+				notes: game.notes,
+				announcedAt: game.announcedAt,
+				reminderSentAt: game.reminderSentAt,
+				gym: {
+					id: gym.id,
+					name: gym.name,
+					address: gym.address,
+					notes: gym.notes,
+				},
+				permit: {
+					id: permit.id,
+					label: permit.label,
+					fileName: permit.fileName,
+				},
+				inCount: sql<number>`(select count(*) from ${rsvp} where ${rsvp.gameId} = ${game.id} and ${rsvp.isIn} = 1)`,
+			})
+			.from(game)
+			// The gym join is inner: `game.gym_id` is NOT NULL, so a game without
+			// one cannot exist, and every caller gets to treat `gym` as present.
+			.innerJoin(gym, eq(game.gymId, gym.id))
+			.leftJoin(permit, eq(game.permitId, permit.id))
+	);
 }
 
 type GameRow = Awaited<
@@ -39,6 +50,10 @@ export function decorateGame(row: GameRow) {
 	return {
 		...row,
 		permit: row.permit?.id ? row.permit : null,
+		/** Where to tell people to go: the court, and the street it is on. */
+		location: row.gym.address
+			? `${row.gym.name}, ${row.gym.address}`
+			: row.gym.name,
 		dateLabel: formatGameDate(row.date),
 		timeLabel: row.endTime
 			? `${formatGameTime(row.startTime)} - ${formatGameTime(row.endTime)}`

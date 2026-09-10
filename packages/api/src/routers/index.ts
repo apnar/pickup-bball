@@ -3,6 +3,7 @@ import type { RouterClient } from "@orpc/server";
 import { publicProcedure } from "../index";
 import { accountRouter } from "./account";
 import { gamesRouter } from "./games";
+import { gymsRouter } from "./gyms";
 import { mailRouter } from "./mail";
 import { peopleRouter } from "./people";
 import { permitsRouter } from "./permits";
@@ -14,6 +15,7 @@ export const appRouter = {
 	}),
 	account: accountRouter,
 	games: gamesRouter,
+	gyms: gymsRouter,
 	permits: permitsRouter,
 	rsvp: rsvpRouter,
 	people: peopleRouter,

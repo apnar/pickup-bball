@@ -17,7 +17,7 @@ const gameInput = z.object({
 	date: dateSchema,
 	startTime: timeSchema,
 	endTime: timeSchema.nullable().optional(),
-	location: z.string().trim().min(1, "Where?").max(80),
+	gymId: z.string().min(1, "Pick a gym."),
 	notes: z.string().trim().max(300).nullable().optional(),
 	permitId: z.string().min(1).nullable().optional(),
 });
@@ -42,7 +42,7 @@ export const gamesRouter = {
 					date: input.date,
 					startTime: input.startTime,
 					endTime: input.endTime ?? null,
-					location: input.location,
+					gymId: input.gymId,
 					notes: input.notes || null,
 					permitId: input.permitId ?? null,
 					createdBy: context.session.user.id,
@@ -76,9 +76,7 @@ export const gamesRouter = {
 					...(changes.endTime !== undefined && {
 						endTime: changes.endTime ?? null,
 					}),
-					...(changes.location !== undefined && {
-						location: changes.location,
-					}),
+					...(changes.gymId !== undefined && { gymId: changes.gymId }),
 					...(changes.notes !== undefined && { notes: changes.notes || null }),
 					...(changes.permitId !== undefined && {
 						permitId: changes.permitId ?? null,

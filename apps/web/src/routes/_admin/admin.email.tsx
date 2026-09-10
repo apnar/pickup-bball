@@ -258,7 +258,7 @@ function AdminEmailPage() {
 															{g.dateLabel}
 														</div>
 														<div className="text-[13px] text-neutral-700">
-															{g.timeLabel} · {g.location} · {g.inCount} in
+															{g.timeLabel} · {g.gym.name} · {g.inCount} in
 														</div>
 													</td>
 													<td className="whitespace-nowrap text-[13px]">
