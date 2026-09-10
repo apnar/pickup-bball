@@ -26,7 +26,7 @@ const publicConditions = [
 	.filter(Boolean)
 	.map((c, i) => ({
 		...(c as { num: string; prop: string; val: string; rem: string }),
-		// The full sheet numbers tip-off 03 and court 04. Both are hidden from
+		// The full sheet numbers tip-off 02 and court 03. Both are hidden from
 		// strangers, so renumber what is left instead of leaving a gap.
 		num: String(i + 1).padStart(2, "0"),
 	}));

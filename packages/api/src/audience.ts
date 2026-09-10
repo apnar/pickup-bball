@@ -57,7 +57,7 @@ export function splitAudience(rows: SheetRow[], active: Person[]): Split {
 	);
 	// A name already on the sheet, even under a guest row somebody else typed
 	// in, has answered as far as the nagging emails are concerned. Without
-	// this, Dave -- visibly In because a friend put him down -- gets a 2 PM
+	// this, Dave -- visibly In because somebody put him down -- gets a 2 PM
 	// email accusing him of saying nothing. Two Daves would collide and one
 	// would miss a prod, which is much the better failure.
 	const claimedNames = new Set(rows.map((r) => r.nameKey));
@@ -94,4 +94,33 @@ export function splitAudience(rows: SheetRow[], active: Person[]): Split {
 /** Unique ids, order preserved. */
 export function union(...groups: string[][]): string[] {
 	return [...new Set(groups.flat())];
+}
+
+/**
+ * Names this person has brought before, for the box that asks who they are
+ * bringing tonight. The same handful of guests come back week after week, and
+ * retyping "Marcus Pritchard" every Monday is how you end up with two of him.
+ *
+ * TypeScript rather than a `group by`: the rows are one person's own history,
+ * a few dozen at the outside, and the interesting part -- collapsing the same
+ * guest typed three different ways and dropping whoever is already on tonight's
+ * sheet -- is exactly what a bare column in a grouped select does badly.
+ *
+ * `rows` must arrive newest first; the order they come back in is the order
+ * they were last brought.
+ */
+export function guestSuggestions(
+	rows: { name: string; nameKey: string }[],
+	onSheet: Iterable<string>,
+	limit: number,
+): string[] {
+	const taken = new Set(onSheet);
+	const out: string[] = [];
+	for (const r of rows) {
+		if (out.length >= limit) break;
+		if (taken.has(r.nameKey)) continue;
+		taken.add(r.nameKey);
+		out.push(r.name);
+	}
+	return out;
 }

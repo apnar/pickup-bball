@@ -4,11 +4,12 @@ import {
 	findPersonState,
 	listRecipients,
 } from "@pickup-bball/db/people";
+import { user } from "@pickup-bball/db/schema/auth";
 import { RSVP_RESPONSES, rsvp } from "@pickup-bball/db/schema/rsvp";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 
-import { splitAudience } from "../audience";
+import { guestSuggestions, splitAudience } from "../audience";
 import type { Context } from "../context";
 import { CONFIRM_AT, PLAY_AT } from "../cycle";
 import { findGame, findNextGame, type GameSummary } from "../games";
@@ -37,8 +38,12 @@ async function listGame(
 			response: rsvp.response,
 			userId: rsvp.userId,
 			addedBy: rsvp.addedBy,
+			addedByName: user.name,
 		})
 		.from(rsvp)
+		// Left, not inner: `added_by` is null on every row that predates the
+		// column, and those names still have to appear on the sheet.
+		.leftJoin(user, eq(rsvp.addedBy, user.id))
 		.where(eq(rsvp.gameId, game.id))
 		.orderBy(asc(rsvp.createdAt));
 
@@ -60,6 +65,23 @@ async function listGame(
 		})),
 		active.map((p) => ({ id: p.id, name: p.name ?? "" })),
 	);
+
+	// Who this person has brought before. Their own history only, and never a
+	// name that is already on tonight's sheet -- the box would just refuse it.
+	const brought = userId
+		? await db
+				.select({ name: rsvp.name, nameKey: rsvp.nameKey })
+				.from(rsvp)
+				.where(
+					and(
+						eq(rsvp.addedBy, userId),
+						isNull(rsvp.userId),
+						ne(rsvp.gameId, game.id),
+					),
+				)
+				.orderBy(desc(rsvp.createdAt))
+				.limit(40)
+		: [];
 
 	return {
 		game,
@@ -83,6 +105,12 @@ async function listGame(
 			silent: split.silent,
 		},
 		silentNames: split.silentNames,
+		/** Names to offer back in the guest box, most recently brought first. */
+		guestSuggestions: guestSuggestions(
+			brought,
+			rows.map((r) => r.nameKey),
+			6,
+		),
 		/**
 		 * The instant this payload was built. The countdown seeds its clock
 		 * from this so the server render and the first client render agree;
@@ -95,6 +123,14 @@ async function listGame(
 			response: r.response,
 			/** Whether the caller is allowed to change this one. */
 			mine: canSet(r, userId, false),
+			/** Somebody with no account, whom another player is vouching for. */
+			guest: r.userId === null,
+			/**
+			 * Who put them on the sheet, so the room knows whose guest it is
+			 * and who to ask when they do not turn up. Null on a member's own
+			 * row and on guest rows that predate the column.
+			 */
+			addedByName: r.userId === null ? r.addedByName : null,
 		})),
 	};
 }
@@ -213,8 +249,9 @@ export const rsvpRouter = {
 					.set({ response: input.answer })
 					.where(eq(rsvp.id, mine.id));
 			} else {
-				// A friend may have typed your name in already. Claim it rather
-				// than colliding with the unique index.
+				// Somebody may have typed your name in already, back when the box
+				// took any name. Claim it rather than colliding with the unique
+				// index.
 				const nameKey = nameKeyOf(me.name);
 				const claimed = await context.db
 					.select({ id: rsvp.id })
@@ -246,7 +283,14 @@ export const rsvpRouter = {
 			return reread(context, game.id, game);
 		}),
 
-	/** Put someone else's name in. They arrive In; that is what adding means. */
+	/**
+	 * Put a guest's name in. They arrive In; that is what adding means.
+	 *
+	 * Guests only. Everybody on the list has their own buttons and their own
+	 * emails, and typing a regular's name in for them takes the answer out of
+	 * their hands -- it also marks them answered, so the 2 PM prod skips the
+	 * one person who has not actually said anything.
+	 */
 	add: protectedProcedure
 		.input(z.object({ gameId: z.string().min(1), name: nameSchema }))
 		.handler(async ({ context, input }) => {
@@ -256,6 +300,22 @@ export const rsvpRouter = {
 
 			const name = input.name.replace(/\s+/g, " ");
 			const nameKey = nameKeyOf(name);
+
+			// "everyone" rather than "active": somebody sitting a month out is
+			// still on the roster, and dragging them back as a guest is not how
+			// a break ends. An admin keeps the old behaviour -- somebody has to
+			// be able to fix the sheet by hand.
+			if (!isAdmin(me)) {
+				const roster = await listRecipients(context.db, "everyone");
+				// Their spelling, not whatever was typed into the box.
+				const listed = roster.find((p) => nameKeyOf(p.name ?? "") === nameKey);
+				if (listed) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `${listed.name} is on the list. They answer for themselves.`,
+					});
+				}
+			}
+
 			const existing = await context.db
 				.select({ id: rsvp.id, userId: rsvp.userId, addedBy: rsvp.addedBy })
 				.from(rsvp)
@@ -343,6 +403,58 @@ export const rsvpRouter = {
 				.where(eq(rsvp.id, row.id));
 
 			await confirmIfReady(context.db, game.id);
+			return reread(context, game.id, game);
+		}),
+
+	/**
+	 * Take a guest back off the sheet. Only a guest, and only yours.
+	 *
+	 * A member's row is never deleted by anybody -- an answer they gave is
+	 * theirs to change, and "out" is how they say it. A guest has no way to
+	 * say anything, so whoever vouched for them has to be able to undo it.
+	 */
+	removeGuest: protectedProcedure
+		.input(z.object({ gameId: z.string().min(1), id: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const game = await requireGame(context.db, input.gameId);
+			if (game.decidedAt) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Called at 7:31. The sheet is a record now.",
+				});
+			}
+			const me = context.session.user;
+			await requireHere(context.db, me.id);
+
+			const row = await context.db
+				.select({
+					id: rsvp.id,
+					name: rsvp.name,
+					userId: rsvp.userId,
+					addedBy: rsvp.addedBy,
+				})
+				.from(rsvp)
+				.where(and(eq(rsvp.id, input.id), eq(rsvp.gameId, game.id)))
+				.get();
+			if (!row) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "That name is not on this game's sheet.",
+				});
+			}
+			if (row.userId !== null) {
+				throw new ORPCError("FORBIDDEN", {
+					message: `${row.name} is on the list. They take themselves off.`,
+				});
+			}
+			if (!canSet(row, me.id, isAdmin(me))) {
+				throw new ORPCError("FORBIDDEN", {
+					message: `${row.name} is not yours to take off.`,
+				});
+			}
+
+			await context.db.delete(rsvp).where(eq(rsvp.id, row.id));
+
+			// No confirmIfReady: this can only lower the count, and stage 03
+			// fires once and never un-fires.
 			return reread(context, game.id, game);
 		}),
 };

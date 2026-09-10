@@ -30,7 +30,7 @@ export function headline(
 	if (counts.in >= limits.confirmAt) return "We have a game. Barely.";
 	if (counts.in >= limits.playAt) return "Enough to play. Not enough to relax.";
 	if (counts.in >= 5) return "Half court unless three more grow up.";
-	return "This is a shooting session, not a run.";
+	return "Not a run yet. Right now it's a carpool.";
 }
 
 /**
@@ -86,4 +86,44 @@ export function yourLine(answer: RsvpAnswer | null, locked: boolean): string {
 		default:
 			return "Nothing from you yet. The list notices.";
 	}
+}
+
+/**
+ * Whether the run is actually asking for a guest, and the line that says so.
+ *
+ * Guests are a remedy for being short, not a feature. The list gets first
+ * refusal all day; only once the six o'clock call has gone out and we are
+ * still under ten does bringing a body become the helpful thing to do. So the
+ * box stays shut until then and explains itself, rather than sitting open and
+ * quietly suggesting that every Monday needs a ringer.
+ */
+export function guestGate(
+	counts: Counts,
+	limits: { confirmAt: number; playAt: number; capacity: number },
+	lastCallPassed: boolean,
+	locked: boolean,
+): { open: boolean; line: string } {
+	if (locked) {
+		return {
+			open: false,
+			line: "The count is closed. Whoever you were bringing, tell them yourself.",
+		};
+	}
+	if (counts.in >= limits.confirmAt) {
+		return {
+			open: false,
+			line: `${counts.in} in. The list handled it, so nobody needs to go find a ringer.`,
+		};
+	}
+	if (!lastCallPassed) {
+		return {
+			open: false,
+			line: "The list gets first crack. If we are still under ten when the six o'clock call goes out, this opens and you can go find a body.",
+		};
+	}
+	const short = limits.confirmAt - counts.in;
+	return {
+		open: true,
+		line: `Six has come and gone and we are ${short} short. Now is the night to know somebody.`,
+	};
 }

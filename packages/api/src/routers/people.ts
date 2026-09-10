@@ -128,7 +128,7 @@ export const peopleRouter = {
 	 *
 	 * Attendance is counted from `rsvp` rows the person claimed as themselves
 	 * (`user_id`), still marked In, on a game that has already happened. A name
-	 * typed in for a friend has no `user_id` and belongs to nobody, which is
+	 * typed in as a guest has no `user_id` and belongs to nobody, which is
 	 * the honest answer: we know somebody came, not who.
 	 */
 	roster: protectedProcedure.handler(async ({ context }) => {

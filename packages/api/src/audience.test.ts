@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Person, SheetRow } from "./audience";
-import { splitAudience, union } from "./audience";
+import { guestSuggestions, splitAudience, union } from "./audience";
 
 const row = (over: Partial<SheetRow> & { name: string }): SheetRow => ({
 	nameKey: over.name.trim().toLowerCase(),
@@ -36,7 +36,7 @@ describe("splitAudience", () => {
 		expect(split.sponsorIds).toEqual(["u-sean"]);
 	});
 
-	it("does not accuse somebody of silence when a friend signed them up", () => {
+	it("does not accuse somebody of silence when a guest row has their name", () => {
 		const split = splitAudience(
 			[row({ name: "Sean", userId: "u-sean" }), row({ name: "dana " })],
 			active,
@@ -67,5 +67,35 @@ describe("splitAudience", () => {
 describe("union", () => {
 	it("merges without repeating anyone", () => {
 		expect(union(["a", "b"], ["b", "c"], [])).toEqual(["a", "b", "c"]);
+	});
+});
+
+describe("guestSuggestions", () => {
+	const past = (...names: string[]) =>
+		names.map((name) => ({ name, nameKey: name.trim().toLowerCase() }));
+
+	it("keeps the order they were last brought in", () => {
+		expect(guestSuggestions(past("Marcus", "Tone", "Big Rob"), [], 6)).toEqual([
+			"Marcus",
+			"Tone",
+			"Big Rob",
+		]);
+	});
+
+	it("collapses the same guest typed three different ways", () => {
+		// Whatever spelling was used most recently is the one offered back.
+		expect(
+			guestSuggestions(past("Marcus", "marcus", " MARCUS "), [], 6),
+		).toEqual(["Marcus"]);
+	});
+
+	it("does not offer somebody already on tonight's sheet", () => {
+		expect(guestSuggestions(past("Marcus", "Tone"), ["marcus"], 6)).toEqual([
+			"Tone",
+		]);
+	});
+
+	it("stops at the limit", () => {
+		expect(guestSuggestions(past("A", "B", "C"), [], 2)).toEqual(["A", "B"]);
 	});
 });

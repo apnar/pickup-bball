@@ -43,8 +43,8 @@ function RosterPage() {
 			/>
 			<p className="mt-7 mb-10 max-w-[60ch] text-base leading-6">
 				Everyone on the list, in order of Mondays turned up for. A game counts
-				when you put your own name in and left it in. Names typed in for a
-				friend belong to nobody, so they count for nobody.
+				when you put your own name in and left it in. Guests belong to nobody,
+				so they count for nobody.
 			</p>
 			<SectionKicker className="mb-5">03 · Personnel file</SectionKicker>
 			{people.length === 0 ? (

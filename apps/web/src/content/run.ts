@@ -26,8 +26,8 @@ export const conditions = [
 	{
 		num: "03",
 		prop: "Court",
-		val: "Shady Grove Middle School",
-		rem: "The gym, not the cafeteria. Park by the side door.",
+		val: "Redland or Shady Grove Middle Schools",
+		rem: "Whichever one the permit says. The sheet for the week names it.",
 	},
 	{
 		num: "04",

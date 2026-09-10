@@ -65,6 +65,9 @@ export function useRsvps(gameId?: string) {
 	const setResponseMutation = useMutation(
 		orpc.rsvp.setResponse.mutationOptions({ onSuccess, onError }),
 	);
+	const removeGuestMutation = useMutation(
+		orpc.rsvp.removeGuest.mutationOptions({ onSuccess, onError }),
+	);
 	// Ending a break belongs to the people router, but the button that does it
 	// lives on the board, so the refetch is wired up here with the rest.
 	const comeBackMutation = useMutation(
@@ -85,7 +88,8 @@ export function useRsvps(gameId?: string) {
 		isPending:
 			addMutation.isPending ||
 			respondMutation.isPending ||
-			setResponseMutation.isPending,
+			setResponseMutation.isPending ||
+			removeGuestMutation.isPending,
 		/** Your own answer. What the buttons in every cycle email end up calling. */
 		respond: (answer: RsvpAnswer) => {
 			if (!id) return Promise.resolve(undefined);
@@ -99,6 +103,11 @@ export function useRsvps(gameId?: string) {
 		add: (name: string) => {
 			if (!id) return Promise.resolve(undefined);
 			return addMutation.mutateAsync({ gameId: id, name });
+		},
+		/** Take a guest back off. Only ever your own, which the server enforces. */
+		removeGuest: (rowId: string) => {
+			if (!id) return;
+			removeGuestMutation.mutate({ gameId: id, id: rowId });
 		},
 		comeBack: () => comeBackMutation.mutate({}),
 		backPending: comeBackMutation.isPending,
