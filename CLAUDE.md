@@ -88,7 +88,9 @@ Everything is constructed per request: `createDb()`, `createAuth()`,
   `publicProcedure` / `protectedProcedure` / `adminProcedure`. `games.*` and
   `rsvp.*` reads are protected on purpose — a stranger must not learn the gym
   address or the tip-off time. `gyms.*` and `permits.*` are admin-only; players
-  see a gym only through the game it is attached to.
+  see a gym only through the game it is attached to. `people.roster` is the
+  player-facing view of the `user` table and returns strictly less than the
+  admin `people.list` — no addresses, tokens, or break reasons.
 - The session is read once in `apps/web/src/routes/__root.tsx` `beforeLoad`
   (through the `getUser` server function) and flows down as router context.
   `routes/_auth/route.tsx` and `routes/_admin/route.tsx` are the guards.
@@ -160,8 +162,8 @@ rather than concrete URLs, and their output must never be run through
   (`bg-ground`, `text-ink`, `text-steel-700`, `font-heading`, `.kicker`, `.tnum`)
   rather than raw Tailwind colors, and the `<Blueprint>` component rather than
   hand-writing the framed/corner-marked look.
-- Standing copy and defaults (site name, court, tip-off, rules, roster,
-  conditions) live in `apps/web/src/content/run.ts`; the numbers the API needs
+- Standing copy and defaults (site name, tip-off, rules, conditions) live in
+  `apps/web/src/content/run.ts`; the numbers the API needs
   (`CAPACITY`, `RUN_TIMEZONE`, date/time formatting) live in
   `packages/api/src/run.ts`.
 - Game `date` is a `YYYY-MM-DD` string and `start_time` an `HH:MM` string, both in

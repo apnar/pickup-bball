@@ -50,8 +50,11 @@ export function effectiveStatus(
 	return row.status;
 }
 
-/** Not thrown out of the group. `banned` is nullable, so never compare it with `= 0`. */
-function notDeactivated() {
+/**
+ * Not thrown out of the group -- which is exactly who is on the roster, break
+ * or no break. `banned` is nullable, so never compare it with `= 0`.
+ */
+export function notDeactivated() {
 	return and(
 		ne(user.status, "deactivated"),
 		or(isNull(user.banned), eq(user.banned, false)),

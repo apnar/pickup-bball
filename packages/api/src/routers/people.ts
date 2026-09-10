@@ -7,17 +7,22 @@ import {
 	findPersonState,
 	findReachablePersonByEmail,
 	listPeople,
+	notDeactivated,
 	reactivate,
 	suspend,
 	unsuspend,
 } from "@pickup-bball/db/people";
+import { user } from "@pickup-bball/db/schema/auth";
+import { game } from "@pickup-bball/db/schema/game";
+import { rsvp } from "@pickup-bball/db/schema/rsvp";
 import { getMailer } from "@pickup-bball/email/worker";
+import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Context } from "../context";
 import { adminProcedure, protectedProcedure, publicProcedure } from "../index";
 import { sendWelcome } from "../mail";
-import { isAdmin } from "../run";
+import { formatGameDate, isAdmin, todayInRunTimezone } from "../run";
 
 const emailSchema = z.email("That is not an email address.").max(254);
 const nameSchema = z.string().trim().max(40, "Shorter name, please.");
@@ -114,6 +119,56 @@ export const peopleRouter = {
 		}),
 
 	list: adminProcedure.handler(({ context }) => listPeople(context.db)),
+
+	/**
+	 * The roster, for players rather than admins: who is in the group and how
+	 * many Mondays they have actually turned up for. Deliberately thinner than
+	 * `list` -- no addresses, no tokens, no reason for somebody's break -- so
+	 * that being a player does not hand you the mailing list.
+	 *
+	 * Attendance is counted from `rsvp` rows the person claimed as themselves
+	 * (`user_id`), still marked In, on a game that has already happened. A name
+	 * typed in for a friend has no `user_id` and belongs to nobody, which is
+	 * the honest answer: we know somebody came, not who.
+	 */
+	roster: protectedProcedure.handler(async ({ context }) => {
+		const today = todayInRunTimezone();
+		const rows = await context.db
+			.select({
+				id: user.id,
+				name: user.name,
+				role: user.role,
+				status: user.status,
+				suspendedUntil: user.suspendedUntil,
+				createdAt: user.createdAt,
+				// count(game.id), not count(rsvp.id): the second join is what
+				// filters out games that have not been played yet, and a row
+				// counted off `rsvp` would keep the ones it dropped.
+				games: sql<number>`count(${game.id})`,
+				lastPlayed: sql<string | null>`max(${game.date})`,
+			})
+			.from(user)
+			.leftJoin(rsvp, and(eq(rsvp.userId, user.id), eq(rsvp.isIn, true)))
+			.leftJoin(game, and(eq(game.id, rsvp.gameId), lt(game.date, today)))
+			.where(notDeactivated())
+			.groupBy(user.id)
+			// Ranked by attendance, as the page has always claimed.
+			.orderBy(desc(sql`count(${game.id})`), asc(user.createdAt))
+			.all();
+
+		const meId = context.session.user.id;
+		return rows.map((row, index) => ({
+			id: row.id,
+			num: String(index + 1).padStart(2, "0"),
+			name: row.name,
+			isAdmin: row.role === "admin",
+			isYou: row.id === meId,
+			away: effectiveStatus(row) === "suspended",
+			since: row.createdAt.getUTCFullYear(),
+			games: row.games,
+			lastPlayed: row.lastPlayed ? formatGameDate(row.lastPlayed) : null,
+		}));
+	}),
 
 	/** Add somebody and email them their way in. Admin only. */
 	add: adminProcedure
