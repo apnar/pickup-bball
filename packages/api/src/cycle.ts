@@ -146,6 +146,6 @@ export const CYCLE_NUMBERS = [
 	{
 		value: CAPACITY,
 		label: "Capacity",
-		body: "Names past this are a waiting list with feelings.",
+		body: "Twelve is the good number. Fifteen is the one where somebody sits a whole game and is loud about it. Past that it is a waiting list with feelings.",
 	},
 ] as const;

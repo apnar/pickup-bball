@@ -28,7 +28,7 @@ const facts: RsvpFacts = {
 	inCount: 7,
 	confirmAt: 10,
 	playAt: 8,
-	capacity: 12,
+	capacity: 15,
 };
 
 describe("the cycle emails", () => {

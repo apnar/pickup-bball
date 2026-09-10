@@ -40,7 +40,7 @@ export default function RsvpBoard() {
 					</p>
 					<p className="mt-3 mb-4 text-[15px] text-neutral-700 leading-6">
 						When a permit lands, the emails start the evening before and the
-						headcount opens here. Until then, the group chat is the gym.
+						headcount opens here. Until then there is nothing to be in for.
 					</p>
 					<Link
 						to="/schedule"

@@ -36,10 +36,10 @@ export function headline(
 /**
  * The next threshold, in words, always with a number in it.
  *
- * Capacity is twelve and ten confirms, so "two spots left" and "three more to
- * go" are both true at once and together they are gibberish. Lead with the
- * number that decides whether there is a run at all, and only mention spots
- * once there is.
+ * The sheet holds more than the number that confirms a run, so "five spots
+ * left" and "three more to go" are both true at once and together they are
+ * gibberish. Lead with the number that decides whether there is a run at all,
+ * and only mention spots once there is one.
  */
 export function subline(
 	counts: Counts,

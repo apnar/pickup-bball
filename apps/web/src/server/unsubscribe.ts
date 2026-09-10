@@ -157,7 +157,7 @@ unsubscribe.post("/:token", async (c) => {
 			heading: until ? `See you ${dateLabel(until)}.` : "Spot held.",
 			body: until
 				? `${escapeHtml(person.email)} is off the game emails until then, and we'll put you back on the sheet automatically. Come back sooner if the calf holds.`
-				: `${escapeHtml(person.email)} is off the game emails until you say otherwise. No hard feelings; the group chat still works.`,
+				: `${escapeHtml(person.email)} is off the game emails until you say otherwise. No hard feelings; one tap puts you back on.`,
 			formHtml: `<form method="post" action="/api/unsubscribe/${escapeHtml(token)}/back" style="margin:20px 0 6px;"><button type="submit" style="${CTA}">Actually, I'm fine</button></form>`,
 			home,
 		}),

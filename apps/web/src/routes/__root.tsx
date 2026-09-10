@@ -79,8 +79,8 @@ function RootDocument() {
 							<span>{SITE_NAME} · est. whenever Sean says</span>
 							{session ? (
 								<span>
-									Rain, snow, or Sean's hip: text the group chat first, then
-									check your email.
+									Rain, snow, or Sean's hip: the verdict is in your inbox by
+									7:30.
 								</span>
 							) : (
 								<span>

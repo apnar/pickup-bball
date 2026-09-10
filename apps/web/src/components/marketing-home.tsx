@@ -35,7 +35,7 @@ const howToGetIn = [
 	{
 		num: "01",
 		title: "It is invite only",
-		body: "Twelve spots, one gym, one permit. Nobody signs themselves up.",
+		body: "One gym, one permit, and a sheet that fills up. Nobody signs themselves up.",
 	},
 	{
 		num: "02",

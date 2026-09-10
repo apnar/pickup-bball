@@ -2,8 +2,12 @@
  * Facts about the run that the API needs. Copy lives in apps/web/src/content.
  */
 
-/** How many names the sheet takes: five a side, plus the two subs there always are. */
-export const CAPACITY = 12;
+/**
+ * How many names the sheet takes. Twelve is the good number -- five a side
+ * and the two subs there always are -- and fifteen is the number we will
+ * actually put up with before somebody sits out a whole game.
+ */
+export const CAPACITY = 15;
 
 /** The gym's timezone. Game dates are calendar days here. */
 export const RUN_TIMEZONE = "America/New_York";

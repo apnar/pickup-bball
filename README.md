@@ -172,8 +172,9 @@ instead, and decides itself at half past seven.
 `CONFIRM_AT` (10), `PLAY_AT` (8) and the stage times live in
 `packages/api/src/cycle.ts`, and `/admin/cycle` renders that same array — so
 the write-up in the admin section cannot describe a schedule the job is not
-keeping. `CAPACITY` (12) stays in `packages/api/src/run.ts` with the rest of
-the facts about the run.
+keeping. `CAPACITY` (15 -- twelve is the good number, fifteen is what we
+tolerate) stays in `packages/api/src/run.ts` with the rest of the facts about
+the run.
 
 An answer is **in, maybe or out**. A maybe counts toward nothing; it only
 decides who gets the six o'clock last call. Guest names typed onto the sheet
