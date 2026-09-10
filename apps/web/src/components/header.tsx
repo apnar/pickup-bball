@@ -1,3 +1,4 @@
+import { isAdmin } from "@pickup-bball/api/run";
 import { buttonVariants } from "@pickup-bball/ui/components/button";
 import { Link, useRouteContext } from "@tanstack/react-router";
 
@@ -38,6 +39,13 @@ export default function Header() {
 				<Link to="/rules" className={linkClass}>
 					Rules
 				</Link>
+				{/* Admin belongs with the other places you can go, not inside the
+				    account menu -- it was in both, which read as two of them. */}
+				{session && isAdmin(session.user) ? (
+					<Link to="/admin" className={linkClass}>
+						Admin
+					</Link>
+				) : null}
 				{session ? (
 					<Link
 						to="/"

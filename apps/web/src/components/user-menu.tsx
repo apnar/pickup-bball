@@ -1,4 +1,3 @@
-import { isAdmin } from "@pickup-bball/api/run";
 import { Button } from "@pickup-bball/ui/components/button";
 import {
 	DropdownMenu,
@@ -18,6 +17,16 @@ import {
 
 import { authClient } from "@/lib/auth-client";
 
+/**
+ * The account menu, and only that. Everywhere you can go lives in the nav
+ * beside it, so this holds the two things that are not places -- who you are
+ * signed in as, and the way out -- plus the one page that is nobody else's
+ * business.
+ *
+ * The address is a label rather than an item: it is the answer to "which
+ * account is this", which matters when people get in from links mailed to
+ * two different addresses, and it was never something you could click.
+ */
 export default function UserMenu() {
 	const navigate = useNavigate();
 	const router = useRouter();
@@ -34,59 +43,48 @@ export default function UserMenu() {
 		);
 	}
 
-	const admin = isAdmin(session.user);
-
 	return (
-		<>
-			{admin ? (
-				<Link
-					to="/admin"
-					className="text-ink text-sm no-underline hover:text-steel-700 aria-[current=page]:text-steel-700"
-				>
-					Admin
-				</Link>
-			) : null}
-			<DropdownMenu>
-				<DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-					{session.user.name}
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuGroup>
-						<DropdownMenuLabel>My account</DropdownMenuLabel>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem>{session.user.email}</DropdownMenuItem>
-						<DropdownMenuItem
-							render={<Link to="/dashboard" className="no-underline" />}
-						>
-							Dashboard
-						</DropdownMenuItem>
-						{admin ? (
-							<DropdownMenuItem
-								render={<Link to="/admin" className="no-underline" />}
-							>
-								Admin
-							</DropdownMenuItem>
-						) : null}
-						<DropdownMenuItem
-							variant="destructive"
-							onClick={() => {
-								authClient.signOut({
-									fetchOptions: {
-										onSuccess: async () => {
-											// The session came from the root route; make the
-											// router go and notice it is gone.
-											await router.invalidate();
-											navigate({ to: "/" });
-										},
+		<DropdownMenu>
+			<DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+				{session.user.name}
+			</DropdownMenuTrigger>
+			{/* The popup takes the trigger's width by default, and the trigger is
+			    a short name. An address needs more room than that. */}
+			<DropdownMenuContent align="end" className="w-auto min-w-56">
+				<DropdownMenuGroup>
+					<DropdownMenuLabel className="px-2 pt-2 pb-1.5">
+						<span className="kicker block text-[11px] text-steel-700">
+							Signed in as
+						</span>
+						<span className="mt-1 block break-all text-ink text-xs">
+							{session.user.email}
+						</span>
+					</DropdownMenuLabel>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						render={<Link to="/dashboard" className="no-underline" />}
+					>
+						Your account
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						variant="destructive"
+						onClick={() => {
+							authClient.signOut({
+								fetchOptions: {
+									onSuccess: async () => {
+										// The session came from the root route; make the
+										// router go and notice it is gone.
+										await router.invalidate();
+										navigate({ to: "/" });
 									},
-								});
-							}}
-						>
-							Sign out
-						</DropdownMenuItem>
-					</DropdownMenuGroup>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</>
+								},
+							});
+						}}
+					>
+						Sign out
+					</DropdownMenuItem>
+				</DropdownMenuGroup>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
