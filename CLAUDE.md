@@ -213,6 +213,13 @@ rather than concrete URLs, and their output must never be run through
   `inCount` subquery in `games.ts` relies on).
 - Comments here explain *why* a thing is the way it is (the security or
   operational reason), not what the code does. Match that when editing.
+- **Commit and push straight to `main`.** No feature branches, no pull
+  requests — one person maintains this and a review queue of one is just a
+  delay. Nothing else looks at the change before it ships, so `pnpm run check`,
+  `pnpm run test` and a build are the gate; run them first.
+- Commit messages are a declarative sentence ("The roster is the people who
+  actually play"), then prose about *why*, in the same voice as the code
+  comments. `git log` is the design record here; match it.
 
 The README is unusually detailed and current — check it before asking about
 deployment, Brevo setup, admin bootstrapping, or who-sees-what.
