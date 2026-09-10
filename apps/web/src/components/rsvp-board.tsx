@@ -4,48 +4,49 @@ import { Input } from "@pickup-bball/ui/components/input";
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { GameFacts } from "@/components/game-facts";
+import { ResponsePicker } from "@/components/response-picker";
+import { RsvpStatus } from "@/components/rsvp-status";
 import SectionKicker from "@/components/section-kicker";
 import { useRsvps } from "@/hooks/use-rsvps";
+import { type RsvpAnswer, yourLine } from "@/lib/rsvp";
 
-function headline(inCount: number, open: number) {
-	if (open <= 0) return "Run is full. Someone is sitting.";
-	if (inCount >= 8) return "We have a game. Barely.";
-	if (inCount >= 5) return "Half court unless three more grow up.";
-	return "This is a shooting session, not a run.";
-}
-
-function subline(inCount: number, open: number) {
-	if (open <= 0) {
-		return "First to the gym plays. Last to the gym referees, badly.";
-	}
-	const spots = `${open} spot${open === 1 ? "" : "s"} left.`;
-	return inCount < 10
-		? `${spots} Text the guys who "might come." They are not coming.`
-		: spots;
-}
+const CARD: Record<RsvpAnswer, string> = {
+	in: "bg-steel text-ground",
+	maybe: "hatch bg-steel-100 text-steel-800",
+	out: "bg-transparent text-neutral-600",
+};
 
 export default function RsvpBoard() {
-	const { headcount, isPending, add, addMe, toggle, comeBack, backPending } =
-		useRsvps();
+	const {
+		headcount,
+		isPending,
+		add,
+		respond,
+		setResponse,
+		comeBack,
+		backPending,
+	} = useRsvps();
 	const { session } = useRouteContext({ from: "__root__" });
 	const [draft, setDraft] = useState("");
 
 	if (!headcount) {
 		return (
 			<section id="rsvp" className="scroll-mt-6 py-12 pb-15">
-				<SectionKicker>02 · Next game</SectionKicker>
-				<Blueprint className="flex min-h-40 flex-col items-center justify-center gap-3 p-8 text-center">
-					<h2 className="font-heading text-[32px] uppercase leading-9 tracking-[0.02em]">
+				<SectionKicker className="mb-6">02 · Next game</SectionKicker>
+				<Blueprint className="max-w-[560px] p-6">
+					<p className="m-0 font-heading font-semibold text-2xl uppercase leading-7 tracking-[0.02em]">
 						No gym booked yet.
-					</h2>
-					<p className="max-w-[48ch] text-[15px] text-neutral-700 leading-6">
-						When a permit lands, the headcount opens here. Until then, the group
-						chat is the gym.
+					</p>
+					<p className="mt-3 mb-4 text-[15px] text-neutral-700 leading-6">
+						When a permit lands, the emails start the evening before and the
+						headcount opens here. Until then, the group chat is the gym.
 					</p>
 					<Link
 						to="/schedule"
 						className={buttonVariants({
-							variant: "ghost",
+							variant: "outline",
+							size: "sm",
 							className: "no-underline",
 						})}
 					>
@@ -56,73 +57,24 @@ export default function RsvpBoard() {
 		);
 	}
 
-	const { game, capacity, me, viewer, rsvps } = headcount;
+	const { game, me, viewer, rsvps } = headcount;
 	const away = viewer?.status === "suspended";
-	const inCount = rsvps.filter((r) => r.isIn).length;
-	const open = capacity - inCount;
-	const fillPct = Math.min(100, Math.round((inCount / capacity) * 100));
+	// Once the verdict is in, the sheet is a record rather than a question.
+	const locked = game.status === "canceled" || Boolean(game.decidedAt);
+	const mine = me ? (rsvps.find((r) => r.id === me)?.response ?? null) : null;
 
 	return (
 		<section id="rsvp" className="scroll-mt-6 py-12 pb-15">
 			<SectionKicker className="mb-6">
 				02 · Next game · {game.dateLabel}
 			</SectionKicker>
-			<div className="mb-8 flex flex-wrap items-center gap-x-8 gap-y-3">
-				<span className="font-heading font-semibold text-[32px] uppercase leading-9 tracking-[0.02em]">
-					{game.dateLabel}
-				</span>
-				<span className="font-heading font-semibold text-[22px] leading-6 tracking-[0.02em]">
-					{game.timeLabel}
-				</span>
-				<span className="text-[15px] text-neutral-700 leading-6">
-					{game.gym.name}
-				</span>
-				{game.permit ? (
-					<a
-						href={`/api/permits/${game.permit.id}/file`}
-						target="_blank"
-						rel="noreferrer"
-						className={buttonVariants({
-							variant: "outline",
-							size: "sm",
-							className: "no-underline",
-						})}
-					>
-						Permit (PDF)
-					</a>
-				) : (
-					<span className="kicker text-neutral-600">No permit attached</span>
-				)}
-			</div>
-			{game.gym.address || game.gym.notes || game.notes ? (
-				<div className="-mt-4 mb-8 max-w-[60ch] space-y-1 text-[15px] text-neutral-700 leading-6">
-					{game.gym.address ? (
-						<p className="text-ink">{game.gym.address}</p>
-					) : null}
-					{/* How to get in, kept on the gym so it is right every week. */}
-					{game.gym.notes ? <p>{game.gym.notes}</p> : null}
-					{game.notes ? <p>{game.notes}</p> : null}
-				</div>
-			) : null}
+			<GameFacts game={game} />
+
 			<div className="grid grid-cols-1 items-start gap-8 md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] md:gap-x-[clamp(24px,5vw,96px)]">
 				<div>
-					<h2 className="font-heading text-[32px] uppercase leading-9 tracking-[0.02em]">
-						{headline(inCount, open)}
-					</h2>
-					<p className="mt-4 max-w-[48ch] text-[15px] text-neutral-700 leading-6">
-						{subline(inCount, open)}
-					</p>
-					<div className="kicker tnum mt-6 mb-2 flex justify-between">
-						<span>{inCount} in</span>
-						<span className="text-neutral-700">{capacity} spots</span>
-					</div>
-					<div className="relative h-2 border border-divider">
-						<div
-							className="absolute inset-0 bg-steel transition-[width]"
-							style={{ width: `${fillPct}%` }}
-						/>
-					</div>
-					<div className="mt-6 max-w-[480px]">
+					<RsvpStatus headcount={headcount} />
+
+					<div className="mt-8 max-w-[480px]">
 						{away ? (
 							// No spot while they are out, but coming back is one tap --
 							// the button they want is the one that undoes the break.
@@ -131,7 +83,13 @@ export default function RsvpBoard() {
 									You're taking a break
 									{viewer?.reason ? `: ${viewer.reason}` : ""}
 									{viewer?.suspendedUntil
-										? `, until ${new Date(viewer.suspendedUntil).toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
+										? `, until ${new Date(
+												viewer.suspendedUntil,
+											).toLocaleDateString("en-US", {
+												month: "long",
+												day: "numeric",
+												timeZone: "America/New_York",
+											})}`
 										: ""}
 									. You're not on the sheet.
 								</p>
@@ -145,47 +103,53 @@ export default function RsvpBoard() {
 								</Button>
 							</div>
 						) : (
-							<Button
-								disabled={isPending || Boolean(me)}
-								onClick={() => addMe()}
-							>
-								{me
-									? `You're in, ${session?.user.name}.`
-									: `I'm in as ${session?.user.name}`}
-							</Button>
+							<>
+								<ResponsePicker
+									name="my-response"
+									legend={`Your answer, ${session?.user.name}`}
+									value={mine}
+									disabled={isPending || locked}
+									onPick={(answer) => respond(answer)}
+								/>
+								<p className="mt-2 text-[13px] text-neutral-700 leading-5">
+									{yourLine(mine, locked)}
+								</p>
+							</>
 						)}
 					</div>
-					<form
-						className="mt-4 flex max-w-[480px] gap-2.5"
-						onSubmit={async (e) => {
-							e.preventDefault();
-							if (!draft.trim()) return;
-							try {
-								await add(draft);
-								setDraft("");
-							} catch {
-								// The mutation already surfaced the error as a toast.
-							}
-						}}
-					>
-						<Input
-							type="text"
-							placeholder="Add a friend"
-							aria-label="Add a friend"
-							value={draft}
-							maxLength={40}
-							onChange={(e) => setDraft(e.target.value)}
-							className="flex-1"
-						/>
-						<Button type="submit" variant="outline" disabled={isPending}>
-							Add
-						</Button>
-					</form>
-					<p className="mt-2 text-[13px] text-neutral-700 leading-5">
-						Tap a name to flip it. Flipping to Out the day of the game is public
-						record.
+
+					{locked ? null : (
+						<form
+							className="mt-6 flex max-w-[480px] gap-2.5"
+							onSubmit={async (e) => {
+								e.preventDefault();
+								if (!draft.trim()) return;
+								try {
+									await add(draft);
+									setDraft("");
+								} catch {
+									// The toast already said so.
+								}
+							}}
+						>
+							<Input
+								aria-label="Add a friend"
+								placeholder="Add a friend"
+								maxLength={40}
+								value={draft}
+								onChange={(e) => setDraft(e.target.value)}
+							/>
+							<Button type="submit" variant="outline" disabled={isPending}>
+								Add
+							</Button>
+						</form>
+					)}
+					<p className="mt-4 max-w-[52ch] text-[13px] text-neutral-700 leading-5">
+						You answer for yourself and for anyone you drag along. Everybody
+						else answers for themselves, which is new, and better.
 					</p>
 				</div>
+
 				{rsvps.length === 0 ? (
 					<div className="blueprint flex min-h-32 items-center justify-center p-6 text-center text-[15px] text-neutral-700 leading-6">
 						<Corners />
@@ -198,27 +162,41 @@ export default function RsvpBoard() {
 				) : (
 					<div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-5 p-2">
 						{rsvps.map((r) => (
-							<button
+							<fieldset
 								key={r.id}
-								type="button"
-								onClick={() => toggle(r.id)}
-								aria-pressed={r.isIn}
-								disabled={isPending}
-								className={`blueprint flex min-h-16 cursor-pointer flex-col gap-1 px-4 py-3.5 text-left transition-colors disabled:cursor-wait ${
-									r.isIn
-										? "bg-steel text-ground hover:bg-steel-600"
-										: "bg-transparent text-ink hover:bg-ink/5"
-								}`}
+								disabled={isPending || locked || !r.mine}
+								className={`blueprint m-0 min-w-0 p-0 ${CARD[r.response]}`}
 							>
 								<Corners />
-								<span className="font-heading font-semibold text-xl uppercase leading-[22px] tracking-[0.02em]">
+								<legend className="sr-only">
 									{r.name}
-								</span>
-								<span className="font-semibold text-xs uppercase tracking-[0.08em] opacity-85">
-									{r.isIn ? "In" : "Out · excuse pending"}
-									{r.id === me ? " · you" : ""}
-								</span>
-							</button>
+									{r.id === me ? " (you)" : ""}
+								</legend>
+								<div className="px-4 pt-3.5 pb-2">
+									<span
+										aria-hidden="true"
+										className="font-heading font-semibold text-xl uppercase leading-[22px] tracking-[0.02em]"
+									>
+										{r.name}
+									</span>
+									{r.id === me ? (
+										<span
+											aria-hidden="true"
+											className="kicker ml-2 text-[11px] opacity-70"
+										>
+											you
+										</span>
+									) : null}
+								</div>
+								<ResponsePicker
+									size="small"
+									name={`rsvp-${r.id}`}
+									legend={r.name}
+									value={r.response}
+									disabled={isPending || locked || !r.mine}
+									onPick={(answer) => setResponse(r.id, answer)}
+								/>
+							</fieldset>
 						))}
 					</div>
 				)}

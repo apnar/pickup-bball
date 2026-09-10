@@ -148,7 +148,7 @@ export const peopleRouter = {
 				lastPlayed: sql<string | null>`max(${game.date})`,
 			})
 			.from(user)
-			.leftJoin(rsvp, and(eq(rsvp.userId, user.id), eq(rsvp.isIn, true)))
+			.leftJoin(rsvp, and(eq(rsvp.userId, user.id), eq(rsvp.response, "in")))
 			.leftJoin(game, and(eq(game.id, rsvp.gameId), lt(game.date, today)))
 			.where(notDeactivated())
 			.groupBy(user.id)

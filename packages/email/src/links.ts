@@ -14,6 +14,23 @@ export function emailLink(siteUrl: string, path: string): string {
 	return `${siteUrl}/api/auth/link?k=${PARAM.key}&to=${encodeURIComponent(path)}`;
 }
 
+/** The three answers a cycle email offers. */
+export type RsvpAnswer = "in" | "maybe" | "out";
+
+/**
+ * A button in a cycle email. Signs the reader in and lands them on a page
+ * that asks the question again, because mail clients fetch these links
+ * unprompted -- the same reason the unsubscribe footer stopped acting on a
+ * GET. Nothing is recorded until a human taps the page.
+ */
+export function rsvpLink(
+	siteUrl: string,
+	gameId: string,
+	answer: RsvpAnswer,
+): string {
+	return emailLink(siteUrl, `/rsvp/${gameId}?a=${answer}`);
+}
+
 /**
  * Where a sign-in link may drop someone: somewhere on this site, never off
  * it. Anything clever ("//evil.com", "https://evil.com", a smuggled newline)

@@ -40,7 +40,7 @@ The whole site runs as a single Cloudflare Worker on the free plan:
   - `/api/unsubscribe/:token` - one-click unsubscribe pages for list emails
   - `/api/brevo/webhook` - Brevo tells the app who unsubscribed, bounced or complained
   - `/api/health` - health check
-- A Cron Trigger runs the Worker's `scheduled` handler (`apps/web/src/server.ts`) every hour. It sends the game-day reminder once it is 9 AM at the gym, once per game.
+- A Cron Trigger runs the Worker's `scheduled` handler (`apps/web/src/server.ts`) every half hour. It runs the RSVP cycle: five emails on a fixed clock and the 7:30 PM verdict on whether there is a run. See "The RSVP cycle" below.
 - The database is Cloudflare D1 (SQLite) accessed through Drizzle via the `DB` binding. Env vars, secrets and bindings come from `cloudflare:workers` (typed in `packages/env/env.d.ts`, which must match `apps/web/wrangler.jsonc`).
 
 ## Local development
@@ -124,9 +124,8 @@ Players hear about games by email, and get in through the links in them. Brevo d
 - **Stepping away.** The footer of every list email links to `/api/unsubscribe/<token>`, which no longer unsubscribes anybody on sight — it shows a form asking for how long and why, and only the POST acts. (That also fixes a real bug: mail clients prefetch link targets, which used to unsubscribe people who never clicked.) A mail client's own one-click `List-Unsubscribe-Post` sends no form at all, so it lands as an open-ended break. Players can do the same thing from `/dashboard` or straight from the RSVP board, and come back from any of them in one tap.
 - **How a link signs you in.** Every link in a list email points at `/api/auth/link?k=<link_token>&to=<path>`, a GET endpoint added by the `email-link` plugin in `packages/auth/src/link.ts`. It finds the person, marks an unverified address verified, opens a session and redirects to `to` — which is checked by `safeReturnPath` and falls back to `/` for anything that points off this site. An unknown token lands on `/login?error=link`, a deactivated one on `/login?error=revoked`. That check is written out here rather than left to the admin plugin: this endpoint mints its own session, so it is the thing standing between a revoked player and the gym address.
 - **What goes out.**
-  - *Welcome* — when an admin adds someone, or resends their link from `/admin/users`, or a player asks for one from `/login`. Carries their concrete sign-in link, no list footer. Somebody on a break can still ask for one: getting back in is how they come back.
-  - *Announcement* — when a gym is booked. Manual: on `/admin/email`, preview the email for the game, then send. The game records `announced_at`. Individual people can be sent it again from `/admin/users`.
-  - *Reminder* — the morning of a game, with the current headcount and who is In. Sent by the hourly Cron Trigger once it is 9 AM Eastern (`REMINDER_LOCAL_HOUR` in `packages/api/src/jobs/reminders.ts`), at most once per game (`game.reminder_sent_at` is the lock). Admins can also send it early from `/admin/email`.
+  - *Welcome* — when an admin adds someone, or resends their link from `/admin/users`, or a player asks for one from `/login`. Carries their concrete sign-in link, no list footer.
+  - *The five cycle emails* — sent by the Cron Trigger, described in "The RSVP cycle" below. An admin can fire any of them early from `/admin/email`, or resend one to a single person from `/admin/users`.
   - *Message* — anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only, with their own token substituted so the links are real.
   - *Account* — Better Auth's password reset from `/forgot-password`, and the verification email left over from the sign-up era. These carry no unsubscribe link.
 - **Sender.** `info@moco-pickup.com`, set in `packages/email/src/sender.ts`. The address and the domain's DNS records are configured in Brevo.
@@ -147,7 +146,7 @@ Setting it up:
    ```
 
    Without the secret the route answers 404, so a missing webhook never breaks anything else.
-5. To exercise the reminder job locally with the dev server running: `curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"`.
+5. To exercise the cycle locally with the dev server running: `curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"`. **Leave `BREVO_API_KEY` unset while you do**, or the run mails everybody in the local database for real.
 
 The templates and Brevo client in `packages/email` are pure functions with tests: `pnpm run test`.
 
@@ -156,6 +155,50 @@ Brevo also offers an MCP server for inspecting the account (senders, templates, 
 ```bash
 claude mcp add --transport http --scope user brevo https://mcp.brevo.com/v1/brevo/mcp --header "Authorization: Bearer <MCP token>"
 ```
+
+## The RSVP cycle
+
+Nothing is emailed when a game is booked. A run asks the list on a fixed clock
+instead, and decides itself at half past seven.
+
+| # | When | Who | What |
+|---|---|---|---|
+| 01 | 5:00 PM the day before | everybody active | there is a run tomorrow; in, out or maybe |
+| 02 | 2:00 PM game day, only under 10 in | only those who have not answered | the names already in, and how many short |
+| 03 | the moment the 10th yes lands | everyone in or maybe | the run is on |
+| 04 | 6:00 PM game day, only under 10 in | the maybes and the silent | last call |
+| 05 | 7:30 PM game day | everyone who answered — and if it is off, everybody else | 8 or more in and it happens; fewer and it does not |
+
+`CONFIRM_AT` (10), `PLAY_AT` (8) and the stage times live in
+`packages/api/src/cycle.ts`, and `/admin/cycle` renders that same array — so
+the write-up in the admin section cannot describe a schedule the job is not
+keeping. `CAPACITY` (12) stays in `packages/api/src/run.ts` with the rest of
+the facts about the run.
+
+An answer is **in, maybe or out**. A maybe counts toward nothing; it only
+decides who gets the six o'clock last call. Guest names typed onto the sheet
+count toward both thresholds — a body is a body — but nobody can email them,
+so a cancellation goes to whoever put them down.
+
+Three rules keep the job honest, all of them in `packages/api/src/jobs/plan.ts`
+and unit-tested there:
+
+- **The opening call is never skipped.** A gym booked at four on a Monday still
+  gets "there is a gym tonight" before anything accuses anybody of silence.
+- **One stage per pass, the latest one due.** An overdue stage is abandoned,
+  not delivered late.
+- **Ninety minutes between sends, except the verdict.** The one email nobody
+  may miss is "there is no run tonight".
+
+Each stage stamps a column on `game` when it is *resolved* — sent **or**
+deliberately skipped — so a stage whose condition was not met is not retried
+every half hour. What actually went out is in `email_send`, one row per send.
+An admin can fire any stage early, or overrule the verdict, on `/admin/email`.
+
+Every link in a cycle email lands on `/rsvp/<gameId>?a=<answer>`, which shows
+the answer and waits for a tap. It does not record anything on load: mail
+clients prefetch link targets, which is the same reason the unsubscribe footer
+stopped acting on a GET.
 
 ## Database changes
 
@@ -208,7 +251,7 @@ pickup-bball/
 - `pnpm run build`: Build the Worker and static assets
 - `pnpm run check-types`: Check TypeScript types across the workspace
 - `pnpm run check`: Run Biome formatting and linting
-- `pnpm run test`: Run the unit tests (email templates and Brevo client)
+- `pnpm run test`: Run the unit tests (email templates, Brevo client, the cycle's timezone and stage maths)
 - `pnpm run db:generate`: Generate a D1 migration from the Drizzle schema
 - `pnpm run db:migrate:local`: Apply migrations to the local D1 database
 - `pnpm run db:migrate:remote`: Apply migrations to the production D1 database

@@ -12,7 +12,7 @@ pnpm run dev              # dev server (pages + API) at http://localhost:3001
 pnpm run build            # vite build -> Worker bundle + assets
 pnpm run check            # biome check --write .  (format + lint + organize imports)
 pnpm run check-types      # tsc --noEmit across the workspace
-pnpm run test             # vitest run in packages/db and packages/email
+pnpm run test             # vitest run in packages/db, packages/email, packages/api
 pnpm run deploy           # build + wrangler deploy
 ```
 
@@ -27,9 +27,12 @@ pnpm --filter @pickup-bball/email exec vitest run src/links.test.ts
 pnpm --filter @pickup-bball/db exec vitest run -t "effectiveStatus"
 ```
 
-Only `packages/db` and `packages/email` have tests — pure functions (templates,
-Brevo request shaping, link paths, status arithmetic). Nothing in the test run
-touches D1 or the network.
+Only `packages/db`, `packages/email` and `packages/api` have tests — pure
+functions (templates, Brevo request shaping, link paths, status arithmetic,
+the RSVP cycle's timezone and stage maths). Nothing in the test run touches D1
+or the network. `packages/api` has no `check-types` script: adding one surfaces
+a pre-existing `File`/`Blob` mismatch in `routers/permits.ts` under the Workers
+lib. The `apps/web` build typechecks that source anyway.
 
 Database:
 
@@ -94,7 +97,7 @@ Everything is constructed per request: `createDb()`, `createAuth()`,
 - The session is read once in `apps/web/src/routes/__root.tsx` `beforeLoad`
   (through the `getUser` server function) and flows down as router context.
   `routes/_auth/route.tsx` and `routes/_admin/route.tsx` are the guards.
-- The hourly Cron Trigger calls `sendDueReminders` and `sweepExpiredSuspensions`.
+- The half-hourly Cron Trigger calls `runRsvpCycle` and `sweepExpiredSuspensions`.
 
 ### Gyms, games and permits
 
@@ -109,6 +112,36 @@ taking one string.
 Permit-to-gym coverage is many-to-many in `permit_gym`, written by
 `setCoverage` in `routers/permits.ts` as delete-then-insert. It is paperwork
 only: it sorts the permit dropdown when booking and never gates anything.
+
+### The RSVP cycle
+
+`packages/api/src/cycle.ts` is the single source of truth for the schedule and
+the thresholds (`CONFIRM_AT` 10, `PLAY_AT` 8). The job reads it, `/admin/cycle`
+renders the same array as prose, so the documentation cannot drift. Keep that
+file free of drizzle and `cloudflare:workers` — the web app bundles it.
+
+- `jobs/plan.ts` is a **pure** `planStage()`: given stamps and a clock it says
+  which stage to run. Its rules (opening call never skipped, one stage per pass
+  and it is the latest due, 90-minute cooldown that the verdict ignores) are
+  the interesting part and are unit-tested without a database.
+- `jobs/rsvp-cycle.ts` executes: read → decide → claim → send, in that order,
+  so a stage that turns out to have nothing to say is never recorded as an
+  email. The claim is a conditional `UPDATE ... WHERE col IS NULL` with
+  `result.meta.changes === 1`.
+- **A stage stamp means resolved, not sent.** Skipped stages stamp too, or the
+  job retries them every half hour. `email_send` is the record of real sends.
+- `jobs/stage-render.ts` is shared by the job and the admin preview, so a
+  preview cannot show an email different from the one that goes out.
+- The tenth yes fires stage 03 inline from the rsvp mutations *and* from the
+  cron. The shared claim makes double-sending impossible; nothing plumbs an
+  `ExecutionContext` to oRPC, so it is awaited rather than deferred.
+- `runInstant(date, time)` in `run.ts` converts the gym's wall clock to a UTC
+  instant with a two-pass offset fix. That second pass is what survives the
+  week after a DST switch, when the evening-before call and the game itself sit
+  on different offsets. Tested; do not "simplify" it to one pass.
+- Every link in a cycle email lands on `/rsvp/$gameId`, which **reads and does
+  not write**. Mail clients prefetch link targets — the same reason
+  `server/unsubscribe.ts` stopped acting on a GET.
 
 ### The one-table people model
 
@@ -168,6 +201,10 @@ rather than concrete URLs, and their output must never be run through
   `packages/api/src/run.ts`.
 - Game `date` is a `YYYY-MM-DD` string and `start_time` an `HH:MM` string, both in
   `America/New_York`. Compare with `todayInRunTimezone()`, not with `Date`.
+- The countdown is the app's only ticking UI. Seed its clock from the payload's
+  `now`, never `Date.now()` in render or a `useState` initializer, or the SSR
+  markup and the hydration markup disagree. Every `toLocale*` call on a date
+  passes `timeZone: "America/New_York"` for the same reason.
 - **Drizzle only writes table-qualified column names when a query has a join.**
   A correlated subquery inside a `sql` template on a single-table `from` comes
   out as `where "gym_id" = "id"` — both resolve against the subquery's own

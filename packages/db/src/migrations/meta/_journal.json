@@ -50,6 +50,13 @@
 			"when": 1789006359146,
 			"tag": "0006_gyms",
 			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "6",
+			"when": 1789039837083,
+			"tag": "0007_rsvp_cycle",
+			"breakpoints": true
 		}
 	]
 }

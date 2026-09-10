@@ -9,7 +9,9 @@
 			"default": "./src/*.ts"
 		}
 	},
-	"scripts": {},
+	"scripts": {
+		"test": "vitest run"
+	},
 	"dependencies": {
 		"@orpc/client": "catalog:",
 		"@orpc/openapi": "catalog:",
@@ -24,6 +26,7 @@
 	},
 	"devDependencies": {
 		"@pickup-bball/config": "workspace:*",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "^4.1.4"
 	}
 }

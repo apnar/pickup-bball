@@ -1,10 +1,11 @@
+import { STAGES } from "@pickup-bball/api/cycle";
 import { Blueprint } from "@pickup-bball/ui/components/blueprint";
 import { Button } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
 import { Label } from "@pickup-bball/ui/components/label";
 import { Textarea } from "@pickup-bball/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -21,8 +22,6 @@ type ListOutcome = {
 	failed: { emails: string[]; error: string }[];
 };
 
-const thClass =
-	"border-divider border-b px-2 py-1.5 text-left font-medium text-[11px] text-ink/60 uppercase tracking-[0.08em]";
 const chip = (tone: "steel" | "neutral" | "warn") =>
 	`inline-flex items-center px-2.5 py-[3px] text-[11px] tracking-[0.02em] ${
 		tone === "steel"
@@ -35,6 +34,7 @@ const chip = (tone: "steel" | "neutral" | "warn") =>
 function when(value: Date | string | null | undefined): string {
 	if (!value) return "";
 	return new Date(value).toLocaleString("en-US", {
+		timeZone: "America/New_York",
 		month: "short",
 		day: "numeric",
 		hour: "numeric",
@@ -122,17 +122,10 @@ function AdminEmailPage() {
 		setConfirmKey(null);
 	};
 
-	const previewAnnouncement = useMutation(
-		orpc.mail.previewAnnouncement.mutationOptions({
+	const previewStage = useMutation(
+		orpc.mail.previewStage.mutationOptions({
 			onSuccess: (data, input) =>
-				setPreview({ ...data, key: `announce:${input.gameId}` }),
-			onError,
-		}),
-	);
-	const previewReminder = useMutation(
-		orpc.mail.previewReminder.mutationOptions({
-			onSuccess: (data, input) =>
-				setPreview({ ...data, key: `remind:${input.gameId}` }),
+				setPreview({ ...data, key: `${input.stage}:${input.gameId}` }),
 			onError,
 		}),
 	);
@@ -142,8 +135,8 @@ function AdminEmailPage() {
 			onError,
 		}),
 	);
-	const sendAnnouncement = useMutation(
-		orpc.mail.sendAnnouncement.mutationOptions({
+	const sendStage = useMutation(
+		orpc.mail.sendStage.mutationOptions({
 			onSuccess: (result) => {
 				reportSend(result);
 				refreshAll();
@@ -151,14 +144,10 @@ function AdminEmailPage() {
 			onError,
 		}),
 	);
-	const sendReminder = useMutation(
-		orpc.mail.sendReminder.mutationOptions({
+	const callIt = useMutation(
+		orpc.mail.callIt.mutationOptions({
 			onSuccess: (result) => {
-				reportSend({
-					attempted: result.recipients,
-					sent: result.recipients - result.failed,
-					failed: [],
-				});
+				reportSend(result);
 				refreshAll();
 			},
 			onError,
@@ -183,13 +172,11 @@ function AdminEmailPage() {
 	const upcoming = games.data?.upcoming ?? [];
 	const activeCount = status.data?.counts.active ?? 0;
 	const everyoneCount = status.data?.counts.everyone ?? 0;
-	/** Announcements and reminders are always active-only. */
+	/** Every cycle email is active-only. Only a message offers the choice. */
 	const recipientCount = activeCount;
 	const messageCount = audience === "everyone" ? everyoneCount : activeCount;
 	const sending =
-		sendAnnouncement.isPending ||
-		sendReminder.isPending ||
-		sendMessage.isPending;
+		sendStage.isPending || callIt.isPending || sendMessage.isPending;
 
 	const confirmButton = (
 		key: string,
@@ -226,106 +213,117 @@ function AdminEmailPage() {
 				<div className="space-y-10">
 					<div>
 						<span className="kicker mb-3 block text-steel-700">
-							Upcoming games · {recipientCount} on the list
+							The cycle · {recipientCount} on the list
 						</span>
+						<p className="mb-4 max-w-[60ch] text-[13px] text-neutral-700 leading-5">
+							These go out on their own now, on the schedule written up on{" "}
+							<Link to="/admin/cycle">the Cycle tab</Link>. The buttons here are
+							for when they should not have to wait.
+						</p>
 						{upcoming.length === 0 ? (
 							<p className="text-[15px] text-neutral-700 leading-6">
-								Nothing booked. Book a game first, then tell people.
+								Nothing booked. Book a game first and the cycle starts the
+								evening before.
 							</p>
 						) : (
-							<div className="overflow-x-auto">
-								<table className="w-full min-w-[520px] border-collapse text-sm">
-									<thead>
-										<tr>
-											{["Game", "Announced", "Reminder", ""].map((h, i) => (
-												<th key={h || `col-${i}`} className={thClass}>
-													{h}
-												</th>
-											))}
-										</tr>
-									</thead>
-									<tbody>
-										{upcoming.map((g) => {
-											const aKey = `announce:${g.id}`;
-											const rKey = `remind:${g.id}`;
-											return (
-												<tr
-													key={g.id}
-													className="border-ink/8 border-b [&>td]:px-2 [&>td]:py-2"
+							<ul className="m-0 list-none space-y-5 p-0">
+								{upcoming.map((g) => (
+									<li key={g.id}>
+										<Blueprint className="p-4">
+											<div className="flex flex-wrap items-baseline justify-between gap-3">
+												<span className="font-heading font-semibold text-lg uppercase tracking-[0.02em]">
+													{g.dateLabel}
+												</span>
+												<span className="text-[13px] text-neutral-700">
+													{g.timeLabel} · {g.gym.name} · {g.inCount} in
+												</span>
+												<span
+													className={chip(
+														g.status === "confirmed"
+															? "steel"
+															: g.status === "canceled"
+																? "warn"
+																: "neutral",
+													)}
 												>
-													<td>
-														<div className="whitespace-nowrap font-heading font-semibold text-lg uppercase tracking-[0.02em]">
-															{g.dateLabel}
-														</div>
-														<div className="text-[13px] text-neutral-700">
-															{g.timeLabel} · {g.gym.name} · {g.inCount} in
-														</div>
-													</td>
-													<td className="whitespace-nowrap text-[13px]">
-														{g.announcedAt ? (
-															<span className={chip("steel")}>
-																{when(g.announcedAt)}
+													{g.status === "confirmed"
+														? "On"
+														: g.status === "canceled"
+															? "Off"
+															: "Not called"}
+												</span>
+											</div>
+											<div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 border-divider border-t pt-3">
+												{STAGES.map((stage) => {
+													const key = `${stage.key}:${g.id}`;
+													const doneAt = g[stage.column] as
+														| string
+														| Date
+														| null;
+													return (
+														<div
+															key={stage.key}
+															className="flex items-center gap-2"
+														>
+															<span
+																className={chip(doneAt ? "steel" : "neutral")}
+															>
+																{stage.num} {stage.title}
+																{doneAt ? ` · ${when(doneAt)}` : ""}
 															</span>
-														) : (
-															<span className={chip("neutral")}>Not yet</span>
-														)}
-													</td>
-													<td className="whitespace-nowrap text-[13px]">
-														{g.reminderSentAt ? (
-															<span className={chip("steel")}>
-																{when(g.reminderSentAt)}
-															</span>
-														) : (
-															<span className={chip("neutral")}>
-																Auto, 9 AM game day
-															</span>
-														)}
-													</td>
-													<td className="text-right">
-														<div className="flex flex-col items-end gap-1">
 															<Button
 																variant="ghost"
 																size="xs"
 																onClick={() =>
-																	previewAnnouncement.mutate({ gameId: g.id })
+																	previewStage.mutate({
+																		gameId: g.id,
+																		stage: stage.key,
+																	})
 																}
 															>
 																Preview
 															</Button>
 															{confirmButton(
-																aKey,
-																g.announcedAt ? "Announce again" : "Announce",
-																() => sendAnnouncement.mutate({ gameId: g.id }),
-																preview?.key !== aKey,
+																key,
+																"Send now",
+																() =>
+																	sendStage.mutate({
+																		gameId: g.id,
+																		stage: stage.key,
+																	}),
+																preview?.key !== key,
 															)}
-															<Button
-																variant="ghost"
-																size="xs"
-																onClick={() =>
-																	previewReminder.mutate({ gameId: g.id })
-																}
-															>
-																Preview reminder
-															</Button>
-															{g.reminderSentAt
-																? null
-																: confirmButton(
-																		rKey,
-																		"Remind now",
-																		() => sendReminder.mutate({ gameId: g.id }),
-																		preview?.key !== rKey,
-																	)}
 														</div>
-													</td>
-												</tr>
-											);
-										})}
-									</tbody>
-								</table>
-								<p className="mt-2 text-[12px] text-neutral-600 leading-5">
-									Send buttons unlock after you preview that email.
-								</p>
-							</div>
+													);
+												})}
+											</div>
+											{/*
+											 * The 7:30 count is the rule; this is the exception.
+											 * Seven in and four maybes is a night a human might
+											 * still want to play.
+											 */}
+											<div className="mt-3 flex flex-wrap items-center gap-2 border-divider border-t pt-3">
+												<span className="kicker text-steel-700">
+													Overrule it
+												</span>
+												{confirmButton(
+													`on:${g.id}`,
+													"Call it on",
+													() => callIt.mutate({ gameId: g.id, decision: "on" }),
+													false,
+												)}
+												{confirmButton(
+													`off:${g.id}`,
+													"Call it off",
+													() =>
+														callIt.mutate({ gameId: g.id, decision: "off" }),
+													false,
+												)}
+											</div>
+										</Blueprint>
+									</li>
+								))}
+							</ul>
 						)}
 					</div>
 

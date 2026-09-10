@@ -128,8 +128,13 @@ function AdminPeoplePage() {
 			onError,
 		}),
 	);
-	const resendAnnouncement = useMutation(
-		orpc.mail.sendAnnouncement.mutationOptions({
+	/**
+	 * One person swears nothing arrived. Re-send them the stage that has most
+	 * recently gone out for the next game -- targeted, so it never touches the
+	 * cycle's own record of what is finished.
+	 */
+	const resendCycle = useMutation(
+		orpc.mail.sendStage.mutationOptions({
 			onSuccess: () => toast.success("Sent again."),
 			onError,
 		}),
@@ -147,7 +152,20 @@ function AdminPeoplePage() {
 		onError,
 	});
 
-	const nextAnnounced = (games.data?.upcoming ?? []).find((g) => g.announcedAt);
+	// The next game whose cycle has actually started, and the last stage of it
+	// that resolved -- that is the email this person is missing.
+	const nextGame = (games.data?.upcoming ?? []).find((g) => g.callAt);
+	const lastStage = nextGame
+		? (
+				[
+					["final", nextGame.decidedAt],
+					["lastCall", nextGame.lastCallAt],
+					["confirmed", nextGame.confirmedAt],
+					["nudge", nextGame.nudgeAt],
+					["call", nextGame.callAt],
+				] as const
+			).find(([, at]) => at)?.[0]
+		: undefined;
 	const busy = suspend.isPending || unsuspend.isPending;
 
 	// Deactivated rows are history, not roster, so they sit at the bottom.
@@ -308,19 +326,20 @@ function AdminPeoplePage() {
 														{pausing === p.id ? "Never mind" : "Break..."}
 													</Button>
 												)}
-												{nextAnnounced && !away ? (
+												{nextGame && lastStage && !away ? (
 													<Button
 														variant="ghost"
 														size="xs"
-														disabled={resendAnnouncement.isPending}
+														disabled={resendCycle.isPending}
 														onClick={() =>
-															resendAnnouncement.mutate({
-																gameId: nextAnnounced.id,
+															resendCycle.mutate({
+																gameId: nextGame.id,
+																stage: lastStage,
 																personIds: [p.id],
 															})
 														}
 													>
-														Resend announcement
+														Resend last email
 													</Button>
 												) : null}
 												<Button

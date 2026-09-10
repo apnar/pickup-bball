@@ -4,7 +4,24 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 import { game } from "./game";
 
-export const EMAIL_KINDS = ["announcement", "reminder", "message"] as const;
+export const EMAIL_KINDS = [
+	/** The five stages of the RSVP cycle, in the order they can fire. */
+	"rsvp_call",
+	"rsvp_nudge",
+	"rsvp_confirmed",
+	"rsvp_last_call",
+	"rsvp_final",
+	/** Anything an admin types on /admin/email. */
+	"message",
+	/**
+	 * Legacy. Nothing writes these any more -- the RSVP cycle replaced the
+	 * announce-on-booking email and the 9 AM reminder -- but rows from before
+	 * it still carry them and the admin log renders them, so the union has to
+	 * admit they exist.
+	 */
+	"announcement",
+	"reminder",
+] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
 /**

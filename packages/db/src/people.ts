@@ -1,4 +1,15 @@
-import { and, asc, eq, isNotNull, isNull, lte, ne, or } from "drizzle-orm";
+import {
+	and,
+	asc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	lte,
+	ne,
+	or,
+} from "drizzle-orm";
 
 import type { createDb } from "./index";
 import {
@@ -7,6 +18,8 @@ import {
 	type StatusActor,
 	user,
 } from "./schema/auth";
+import { game } from "./schema/game";
+import { rsvp } from "./schema/rsvp";
 
 type Db = ReturnType<typeof createDb>;
 
@@ -260,6 +273,39 @@ export async function markLinkSent(db: Db, id: string): Promise<void> {
 	await db.update(user).set({ linkSentAt: new Date() }).where(eq(user.id, id));
 }
 
+/**
+ * Take somebody off the sheet for every game still ahead of them.
+ *
+ * Stepping away has to mean stepping off the headcount, or a torn calf on
+ * Sunday night still counts toward Monday's ten, shows up in the In list of
+ * every email, and gets none of them -- because none of those emails go to
+ * anybody on a break.
+ *
+ * Dates are compared as YYYY-MM-DD strings against the gym's calendar day,
+ * which is what `game.date` has always been.
+ */
+async function standDown(db: Db, userId: string): Promise<void> {
+	const today = new Intl.DateTimeFormat("en-CA", {
+		timeZone: "America/New_York",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	}).format(new Date());
+	await db
+		.update(rsvp)
+		.set({ response: "out" })
+		.where(
+			and(
+				eq(rsvp.userId, userId),
+				ne(rsvp.response, "out"),
+				inArray(
+					rsvp.gameId,
+					db.select({ id: game.id }).from(game).where(gte(game.date, today)),
+				),
+			),
+		);
+}
+
 export type SuspendInput = {
 	userId: string;
 	reason?: string | null;
@@ -274,6 +320,7 @@ export type SuspendInput = {
  * a deactivated row: an admin put them there and only an admin lifts it.
  */
 export async function suspend(db: Db, input: SuspendInput): Promise<boolean> {
+	await standDown(db, input.userId);
 	const result = await db
 		.update(user)
 		.set({
@@ -364,6 +411,7 @@ export async function deactivate(
 	db: Db,
 	input: { userId: string; reason?: string | null },
 ): Promise<void> {
+	await standDown(db, input.userId);
 	const reason = input.reason?.trim() || null;
 	await db
 		.update(user)

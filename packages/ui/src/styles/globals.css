@@ -212,6 +212,16 @@
 		right: -6px;
 	}
 
+	/* Provisional. Blueprint hatching reads as drawn but not built, which is
+	   exactly what a maybe is. */
+	.hatch {
+		background-image: repeating-linear-gradient(
+			45deg,
+			color-mix(in srgb, var(--color-steel) 30%, transparent) 0 2px,
+			color-mix(in srgb, var(--color-steel) 8%, transparent) 2px 6px
+		);
+	}
+
 	/* Small uppercase label used for numbered section headers and metadata. */
 	.kicker {
 		@apply font-semibold text-[13px] uppercase tracking-[0.08em];

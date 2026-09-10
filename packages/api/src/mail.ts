@@ -5,7 +5,7 @@ import {
 	listRecipients,
 	markLinkSent,
 } from "@pickup-bball/db/people";
-import { emailSend } from "@pickup-bball/db/schema/email";
+import { type EmailKind, emailSend } from "@pickup-bball/db/schema/email";
 import { rsvp } from "@pickup-bball/db/schema/rsvp";
 import type {
 	ListRecipient,
@@ -14,21 +14,22 @@ import type {
 	SendOutcome,
 } from "@pickup-bball/email";
 import {
-	announcementEmail,
 	messageEmail,
-	reminderEmail,
+	type RsvpFacts,
 	welcomeEmail,
 } from "@pickup-bball/email";
 import { getMailer, siteUrl } from "@pickup-bball/email/worker";
-import { and, asc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
+import { type Split, splitAudience } from "./audience";
 import type { Context } from "./context";
+import { CONFIRM_AT, PLAY_AT } from "./cycle";
 import type { GameSummary } from "./games";
 import { CAPACITY } from "./run";
 
 type Db = Context["db"];
 
-export type EmailKind = "announcement" | "reminder" | "message";
+export type { EmailKind };
 
 export type ListSendResult = ListResult & { sendId: string };
 
@@ -49,17 +50,50 @@ export function permitUrl(game: GameSummary): string | null {
 	return game.permit ? `${siteUrl()}/api/permits/${game.permit.id}/file` : null;
 }
 
-export function renderAnnouncement(game: GameSummary): Rendered {
-	return announcementEmail({
+/** Every fact the five cycle emails share about one game. */
+export function rsvpFacts(game: GameSummary, split: Split): RsvpFacts {
+	return {
+		gameId: game.id,
 		dateLabel: game.dateLabel,
 		timeLabel: game.timeLabel,
 		location: game.location,
 		notes: game.notes,
-		permitUrl: permitUrl(game),
 		siteUrl: siteUrl(),
-		inCount: game.inCount,
+		inNames: split.inNames,
+		maybeNames: split.maybeNames,
+		inCount: split.yes,
+		confirmAt: CONFIRM_AT,
+		playAt: PLAY_AT,
 		capacity: CAPACITY,
-	});
+	};
+}
+
+/** The sheet for a game, in the shape the audience split wants. */
+export async function readSheet(db: Db, gameId: string) {
+	return db
+		.select({
+			name: rsvp.name,
+			nameKey: rsvp.nameKey,
+			userId: rsvp.userId,
+			addedBy: rsvp.addedBy,
+			response: rsvp.response,
+		})
+		.from(rsvp)
+		.where(eq(rsvp.gameId, gameId))
+		.orderBy(asc(rsvp.createdAt))
+		.all();
+}
+
+/** The sheet and the list together, split into who hears what. */
+export async function readSplit(db: Db, gameId: string): Promise<Split> {
+	const [rows, active] = await Promise.all([
+		readSheet(db, gameId),
+		listRecipients(db, "active"),
+	]);
+	return splitAudience(
+		rows,
+		active.map((p) => ({ id: p.id, name: p.name ?? "" })),
+	);
 }
 
 export function renderMessage(input: {
@@ -67,27 +101,6 @@ export function renderMessage(input: {
 	body: string;
 }): Rendered {
 	return messageEmail({ ...input, siteUrl: siteUrl() });
-}
-
-export async function renderReminder(
-	db: Db,
-	game: GameSummary,
-): Promise<Rendered> {
-	const rows = await db
-		.select({ name: rsvp.name })
-		.from(rsvp)
-		.where(and(eq(rsvp.gameId, game.id), eq(rsvp.isIn, true)))
-		.orderBy(asc(rsvp.createdAt))
-		.all();
-	return reminderEmail({
-		dateLabel: game.dateLabel,
-		timeLabel: game.timeLabel,
-		location: game.location,
-		inCount: rows.length,
-		capacity: CAPACITY,
-		inNames: rows.map((r) => r.name),
-		siteUrl: siteUrl(),
-	});
 }
 
 /** How many people a send of this audience would reach right now. */

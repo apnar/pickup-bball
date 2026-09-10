@@ -14,7 +14,7 @@ export function welcomeEmail(input: WelcomeInput): Rendered {
 		kicker: "You're in",
 		heading: "You're on the list.",
 		bodyHtml: [
-			`<p style="margin:0 0 14px; font-size:16px; line-height:1.5;">${escapeHtml(greeting)} are on the Monday night list. One email when a gym is booked, one the morning of with who is in.</p>`,
+			`<p style="margin:0 0 14px; font-size:16px; line-height:1.5;">${escapeHtml(greeting)} are on the Monday night list. The evening before a run you get one email asking if you are in, out or maybe. Answer it and the rest sorts itself out.</p>`,
 			button("Open the site", input.url),
 			muted(
 				`Or paste this into a browser:<br><a href="${escapeHtml(input.url)}" style="color:#2f5f86; word-break:break-all;">${escapeHtml(input.url)}</a>`,
@@ -28,7 +28,7 @@ export function welcomeEmail(input: WelcomeInput): Rendered {
 		].join("\n"),
 	});
 	const text = [
-		`${greeting} are on the Monday night list. One email when a gym is booked, one the morning of with who is in.`,
+		`${greeting} are on the Monday night list. The evening before a run you get one email asking if you are in, out or maybe. Answer it and the rest sorts itself out.`,
 		"",
 		input.url,
 		"",

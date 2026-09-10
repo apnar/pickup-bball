@@ -5,7 +5,14 @@ import { rsvp } from "@pickup-bball/db/schema/rsvp";
 import { asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import type { Context } from "./context";
-import { formatGameDate, formatGameTime, todayInRunTimezone } from "./run";
+import { CLOCK_STAGES } from "./cycle";
+import {
+	addDays,
+	formatGameDate,
+	formatGameTime,
+	runInstant,
+	todayInRunTimezone,
+} from "./run";
 
 type Db = Context["db"];
 
@@ -19,8 +26,13 @@ function selectGames(db: Db) {
 				startTime: game.startTime,
 				endTime: game.endTime,
 				notes: game.notes,
-				announcedAt: game.announcedAt,
-				reminderSentAt: game.reminderSentAt,
+				status: game.status,
+				callAt: game.callAt,
+				nudgeAt: game.nudgeAt,
+				confirmedAt: game.confirmedAt,
+				lastCallAt: game.lastCallAt,
+				decidedAt: game.decidedAt,
+				lastEmailAt: game.lastEmailAt,
 				gym: {
 					id: gym.id,
 					name: gym.name,
@@ -32,7 +44,7 @@ function selectGames(db: Db) {
 					label: permit.label,
 					fileName: permit.fileName,
 				},
-				inCount: sql<number>`(select count(*) from ${rsvp} where ${rsvp.gameId} = ${game.id} and ${rsvp.isIn} = 1)`,
+				inCount: sql<number>`(select count(*) from ${rsvp} where ${rsvp.gameId} = ${game.id} and ${rsvp.response} = 'in')`,
 			})
 			.from(game)
 			// The gym join is inner: `game.gym_id` is NOT NULL, so a game without
@@ -54,6 +66,22 @@ export function decorateGame(row: GameRow) {
 		location: row.gym.address
 			? `${row.gym.name}, ${row.gym.address}`
 			: row.gym.name,
+		/**
+		 * Every moment of this game's cycle as a UTC instant, worked out once
+		 * here so nothing downstream -- least of all a browser -- has to know
+		 * what timezone the gym is in.
+		 */
+		cycle: {
+			startsAt: runInstant(row.date, row.startTime).toISOString(),
+			stages: CLOCK_STAGES.map((stage) => ({
+				key: stage.key,
+				at: runInstant(
+					addDays(row.date, stage.dayOffset),
+					stage.at as string,
+				).toISOString(),
+				doneAt: (row[stage.column] as Date | null)?.toISOString() ?? null,
+			})),
+		},
 		dateLabel: formatGameDate(row.date),
 		timeLabel: row.endTime
 			? `${formatGameTime(row.startTime)} - ${formatGameTime(row.endTime)}`

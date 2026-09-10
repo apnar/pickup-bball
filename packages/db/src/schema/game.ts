@@ -11,6 +11,14 @@ import { user } from "./auth";
 import { gym } from "./gym";
 import { permit } from "./permit";
 
+/**
+ * Where a game stands. `scheduled` until the RSVP cycle decides: `confirmed`
+ * the moment ten say yes (or at the final call with eight), `canceled` at the
+ * final call with fewer.
+ */
+export const GAME_STATUSES = ["scheduled", "confirmed", "canceled"] as const;
+export type GameStatus = (typeof GAME_STATUSES)[number];
+
 /** A booked run. Only exists once a gym has been rented. */
 export const game = sqliteTable(
 	"game",
@@ -37,10 +45,33 @@ export const game = sqliteTable(
 		createdBy: text("created_by").references(() => user.id, {
 			onDelete: "set null",
 		}),
-		/** When an admin emailed the list about this game. */
-		announcedAt: integer("announced_at", { mode: "timestamp_ms" }),
-		/** Set by the game-day reminder job; also its once-only lock. */
-		reminderSentAt: integer("reminder_sent_at", { mode: "timestamp_ms" }),
+
+		status: text("status", { enum: GAME_STATUSES })
+			.notNull()
+			.default("scheduled"),
+
+		/*
+		 * One stamp per stage of the RSVP cycle. Each means the stage is
+		 * RESOLVED, not that an email went out: a stage skipped because its
+		 * condition was not met is stamped too, or the job would retry it
+		 * every half hour for the rest of the day. What actually went out
+		 * lives in `email_send`, one row per send, keyed by `game_id`.
+		 */
+		callAt: integer("call_at", { mode: "timestamp_ms" }),
+		nudgeAt: integer("nudge_at", { mode: "timestamp_ms" }),
+		/** Also the answer to "when did we hit ten". Write-once. */
+		confirmedAt: integer("confirmed_at", { mode: "timestamp_ms" }),
+		lastCallAt: integer("last_call_at", { mode: "timestamp_ms" }),
+		/** Stamped even when the 7:30 email is deliberately suppressed. */
+		decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+		/**
+		 * When a cycle email actually left the building. Separate from the
+		 * stamps above because the spacing rule between sends is about
+		 * inboxes, not bookkeeping -- a stage that resolved without sending
+		 * must not push the next one an hour and a half out.
+		 */
+		lastEmailAt: integer("last_email_at", { mode: "timestamp_ms" }),
+
 		createdAt: integer("created_at", { mode: "timestamp_ms" })
 			.default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
 			.notNull(),

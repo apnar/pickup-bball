@@ -1,4 +1,4 @@
-import { sendDueReminders } from "@pickup-bball/api/jobs/reminders";
+import { runRsvpCycle } from "@pickup-bball/api/jobs/rsvp-cycle";
 import { createDb } from "@pickup-bball/db";
 import { sweepExpiredSuspensions } from "@pickup-bball/db/people";
 import { env } from "@pickup-bball/env/server";
@@ -31,9 +31,10 @@ export default {
 	fetch: entry.fetch,
 
 	/**
-	 * Cron Trigger (wrangler.jsonc `triggers.crons`, hourly). Sends the
-	 * game-day reminder once it is morning at the gym, and tidies suspensions
-	 * that have run out. Test locally with
+	 * Cron Trigger (wrangler.jsonc `triggers.crons`, every half hour). Runs
+	 * the RSVP cycle -- the five emails and the 7:30 verdict, all of it
+	 * described on /admin/cycle -- and tidies suspensions that have run out.
+	 * Test locally with
 	 * `curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"`.
 	 */
 	async scheduled(
@@ -43,9 +44,9 @@ export default {
 	) {
 		const now = new Date(controller.scheduledTime);
 		ctx.waitUntil(
-			sendDueReminders(createDb(), now).then(
-				(result) => console.log("reminders", JSON.stringify(result)),
-				(error) => console.error("reminders failed", error),
+			runRsvpCycle(createDb(), now).then(
+				(result) => console.log("rsvp cycle", JSON.stringify(result)),
+				(error) => console.error("rsvp cycle failed", error),
 			),
 		);
 		// Housekeeping only: an expired suspension already counts as active
