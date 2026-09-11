@@ -18,14 +18,15 @@ function RulesPage() {
 			/>
 			<p className="mt-7 mb-10 max-w-[60ch] text-base leading-6">
 				Ratified by whoever was still there at 9:30 one night in 2019.
-				Amendments require a made free throw. Nobody has passed an amendment.
+				Amendments require a made free throw, which is why there have only ever
+				been two. They went in at the top, where they belong.
 			</p>
 			<SectionKicker>04 · Code of conduct</SectionKicker>
 			<div className="grid grid-cols-1 gap-[clamp(24px,3vw,48px)] p-2 md:grid-cols-3">
-				{rules.map((rule) => (
-					<Blueprint key={rule.num} className="p-6">
+				{rules.map((rule, i) => (
+					<Blueprint key={rule.title} className="p-6">
 						<span className="kicker tnum mb-3 block text-steel-700">
-							{rule.num}
+							{String(i + 1).padStart(2, "0")}
 						</span>
 						<h2 className="font-heading text-[22px] uppercase leading-6 tracking-[0.02em]">
 							{rule.title}

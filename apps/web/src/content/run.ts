@@ -43,39 +43,45 @@ export const conditions = [
 	},
 ] as const;
 
+/**
+ * The house rules, in the order they matter. Numbered where they are
+ * rendered, not here -- the first two were added years after the rest, and
+ * hand-typed numbers would have meant retyping all of them to do it.
+ */
 export const rules = [
 	{
-		num: "01",
+		title: "Nobody gets hurt",
+		body: "Everybody here works Tuesday. No charges taken, no undercutting a jumper, no closing out like somebody is scouting. The run only happens again if the same guys can walk in next week.",
+	},
+	{
+		title: "Don't be a dick",
+		body: "Covers the arguing, the scorekeeping nobody asked for, and the guy who calls a foul on every miss. It also covers whatever you were about to do that is not on this list.",
+	},
+	{
 		title: "Call your own fouls",
 		body: "Then live with the shame. The offense calls it, the defense complains about it, the game moves on.",
 	},
 	{
-		num: "02",
 		title: "Winners stay",
 		body: "Losers shoot for next. Free throws only. Airballs forfeit your spot to whoever laughed loudest.",
 	},
 	{
-		num: "03",
 		title: "Twos and threes, to 15",
 		body: "Win by two. The last game of the night is the exception: it ends when the gym does, not when somebody gets to 15.",
 	},
 	{
-		num: "04",
 		title: "Sean's ball, Sean's rules",
 		body: "Sean's hip also gets a vote. When the hip goes, the run goes. Do not test the hip.",
 	},
 	{
-		num: "05",
 		title: "No heat checks before 9:30",
 		body: "Nobody has earned a 30-footer at 9:10. Nobody has earned one at 10:15 either, but rules are rules.",
 	},
 	{
-		num: "06",
 		title: "Four on four, nothing over half",
 		body: "Short-handed nights, the ball gets dribbled across half court. No long outlet to the guy who quit on defense and left early.",
 	},
 	{
-		num: "07",
 		title: "The colored bars are in",
 		body: "Those fat painted stripes down the sidelines play as in bounds. The baseline is still the baseline, so do not get inventive back there.",
 	},
