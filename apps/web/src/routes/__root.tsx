@@ -54,6 +54,12 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 				rel: "stylesheet",
 				href: appCss,
 			},
+			// The sheet in steel with its registration marks and one condensed M.
+			// SVG for browsers that take it, the .ico for the ones that do not
+			// (Safari among them), and the 180px PNG for a home screen.
+			{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+			{ rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+			{ rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
 		],
 	}),
 
