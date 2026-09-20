@@ -65,7 +65,7 @@ Open [http://localhost:3001](http://localhost:3001).
 The site is two sites wearing one coat.
 
 - **Anonymous visitors** get the pitch: Monday nights, somewhere in Montgomery County, the rules, and how to get in. No court, no tip-off time, no booked dates, no headcount, no names.
-- **Players** — anyone with a session — get everything: the next game with its court and time, the schedule, the roster, and one-tap RSVP under their own name.
+- **Players** — anyone with a session — get everything: the next game with its court and time, the schedule, the roster, and one-tap RSVP under their own name. When a call for gym money is open they also see their own row on it — owed, paid or excused — and nobody else's.
 
 Nobody signs themselves up. Public sign-up is closed (`emailAndPassword.disableSignUp`), and there is no join form. An admin adds an address on `/admin/users`, the welcome email goes out, and **every link in every email that person gets is unique to them and signs them in when clicked**. That link is a bearer token, which is why the emails say not to forward it. The one exception is the permit PDF: it is meant to be waved at gym staff, so its URL carries nothing.
 
@@ -113,7 +113,19 @@ pnpm --filter web exec wrangler d1 execute DB --remote --command "select link_to
 - **Permits** are PDFs stored in the `PERMITS` R2 bucket (`pickup-bball-permits`) with a row in the `permit` table. Admins upload them on `/admin/permits` and attach them to games. On upload they also tick **which courts the permit covers** -- one piece of paper from the county often rents two gyms -- which is a set of rows in `permit_gym` and can be re-ticked later from the Courts button on any permit. Coverage is paperwork, not a booking: it sorts the permit dropdown when an admin books a game, and nothing more. Anyone with the link can open `/api/permits/<id>/file` (add `?download=1` to download), so a permit can be shown to gym staff from any phone.
 - **Headcount** rows in `rsvp` belong to a game (`game_id`). A player taps "I'm in as {name}" to put themselves on the sheet (`rsvp.addMe`, which claims the row by `user_id` and marks it "you"), and can type a friend's name in as well. Deleting a game deletes its headcount.
 
-The oRPC procedures are `account.*`, `games.*`, `gyms.*`, `permits.*`, `rsvp.*`, `people.*` and `mail.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. `/roster` is built from the `user` table by `people.roster`, ranked by Mondays actually attended -- a `protectedProcedure` that deliberately returns less than the admin `people.list`: names, standing and counts, never addresses, tokens or the reason somebody is on a break. Rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+The oRPC procedures are `account.*`, `games.*`, `gyms.*`, `permits.*`, `rsvp.*`, `people.*`, `mail.*` and `contributions.*` under `packages/api/src/routers`. Admin-only procedures use `adminProcedure` from `packages/api/src/index.ts`; `games.*` and `rsvp.*` reads are `protectedProcedure`, so a stranger gets UNAUTHORIZED rather than the address of the gym. `/roster` is built from the `user` table by `people.roster`, ranked by Mondays actually attended -- a `protectedProcedure` that deliberately returns less than the admin `people.list`: names, standing and counts, never addresses, tokens or the reason somebody is on a break. Rules and game conditions remain plain content in `apps/web/src/content/run.ts`.
+
+## Gym money
+
+Sean fronts the county's rental and the list pays him back. A **call** for money is written once on `/admin/contributions` (the Money tab): a subject, the body, a whole-dollar amount per person, and one line on how to get it to Sean. The amount and the instructions come back prefilled next time, so they are typed once. Preview it, send yourself a copy, then send it; it goes to the **active** list and nobody else.
+
+- **The ledger is a snapshot.** Sending the call writes one `contribution_call` row and one `contribution` row per person who was on the active list at that moment. Somebody added next week does not owe for a gym they never played in; somebody who takes a break mid-call still does.
+- **One call is open at a time.** The page tracks the open call: a tally line ("14 of 22 paid, $560 of $880."), a table of everybody billed, and per-row **Paid**, **Excuse** and **Not paid** buttons. An excused person is out of both numbers, not counted as paid. Trying to put out a second call while one is open is refused in words; a partial unique index on `contribution_call` backs that up for the double-click the words cannot catch.
+- **Reminders go by hand**, from the same page, to whoever is still unpaid *and* still on the active list. Somebody on a break owes but is not nagged; the page says how many are in that spot. Only a real send stamps `last_reminded_at`.
+- **Close the books** when Sean is done chasing. Reminders stop, the players' notices go quiet, and the call moves to the "Past calls" list with its final tally. Marks on a closed call are refused.
+- **Players** see their own row only: a "Gym money" line on `/dashboard`, and an amber strip on the home page while they still owe. Neither page writes anything; marking paid is Sean's job, which is also why the emails carry no "I paid" link (mail clients prefetch links).
+
+Both emails land on `/dashboard` through the reader's own sign-in link and are logged in `email_send` as `contribution_call` and `contribution_reminder`.
 
 ## Email
 
@@ -127,6 +139,7 @@ Players hear about games by email, and get in through the links in them. Brevo d
   - *Welcome* — when an admin adds someone, or resends their link from `/admin/users`, or a player asks for one from `/login`. Carries their concrete sign-in link, no list footer.
   - *The five cycle emails* — sent by the Cron Trigger, described in "The RSVP cycle" below. An admin can fire any of them early from `/admin/email`, or resend one to a single person from `/admin/users`.
   - *Message* — anything an admin types on `/admin/email`. "Send to me first" delivers a test copy to the signed-in admin only, with their own token substituted so the links are real.
+  - *Gym money* — the call for contributions and the reminder to the unpaid, both sent by hand from `/admin/contributions`. See "Gym money" above.
   - *Account* — Better Auth's password reset from `/forgot-password`, and the verification email left over from the sign-up era. These carry no unsubscribe link.
 - **Sender.** `info@moco-pickup.com`, set in `packages/email/src/sender.ts`. The address and the domain's DNS records are configured in Brevo.
 - **Log.** Every list send writes one `email_send` row (kind, subject, recipient count, failures, Brevo message ids). `/admin/email` shows the last twenty.

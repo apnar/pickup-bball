@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { escapeHtml, PARAM } from "./render";
 import {
+	CONTRIBUTION_REMINDER_BODY,
+	contributionCallDefaults,
+	contributionCallEmail,
+	contributionReminderEmail,
 	messageEmail,
 	type RsvpFacts,
 	resetPasswordEmail,
@@ -185,5 +189,65 @@ describe("auth templates", () => {
 		expect(verify.text).toContain(url);
 		expect(verify.html).toContain("Kyle &lt;script&gt;");
 		expect(reset.text).toContain(url);
+	});
+});
+
+describe("gym money", () => {
+	const call = contributionCallEmail({
+		subject: "Gym money & the rest",
+		body: "Sean paid the county.\n\nPay him back <soon>.",
+		amount: 40,
+		instructions: "Venmo @sean, or cash & carry",
+		siteUrl: site,
+	});
+	const reminder = contributionReminderEmail({
+		body: CONTRIBUTION_REMINDER_BODY,
+		amount: 1200,
+		instructions: "Zelle",
+		siteUrl: site,
+	});
+
+	it("escapes what the admin typed and keeps the footer", () => {
+		expect(call.html).toContain("Pay him back &lt;soon&gt;.");
+		expect(call.html).toContain("cash &amp; carry");
+		expect(call.html).not.toContain("<soon>");
+		for (const r of [call, reminder]) {
+			expect(r.html).toContain(PARAM.unsubscribeUrl);
+			expect(r.text).toContain(PARAM.unsubscribeUrl);
+		}
+	});
+
+	it("puts the amount and the instructions in the facts", () => {
+		expect(call.html).toContain("Amount");
+		expect(call.html).toContain("$40");
+		expect(call.text).toContain("Amount: $40");
+		expect(call.text).toContain("How to pay: Venmo @sean, or cash & carry");
+		expect(reminder.text).toContain("Amount: $1,200");
+	});
+
+	it("sends everyone to the dashboard through their own link", () => {
+		for (const r of [call, reminder]) {
+			expect(r.html).toContain("%2Fdashboard");
+			expect(r.html).toContain(PARAM.key);
+			expect(r.text).toContain("%2Fdashboard");
+			expect(r.text).toContain(PARAM.key);
+			expect(r.html).not.toContain("/rsvp/");
+		}
+	});
+
+	it("the reminder names the amount in the subject", () => {
+		expect(reminder.subject).toBe("Still owed: $1,200 for the gym.");
+		expect(call.subject).toBe("Gym money & the rest");
+	});
+
+	it("the stock copy has no exclamation marks", () => {
+		const defaults = contributionCallDefaults(40);
+		for (const s of [
+			defaults.subject,
+			defaults.body,
+			CONTRIBUTION_REMINDER_BODY,
+		]) {
+			expect(s).not.toContain("!");
+		}
 	});
 });

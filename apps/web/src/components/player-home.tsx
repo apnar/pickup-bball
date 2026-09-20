@@ -2,6 +2,7 @@ import { Blueprint } from "@pickup-bball/ui/components/blueprint";
 import { Button, buttonVariants } from "@pickup-bball/ui/components/button";
 import { Link } from "@tanstack/react-router";
 
+import GymMoneyNotice from "@/components/gym-money-notice";
 import PageTitle from "@/components/page-title";
 import RsvpBoard from "@/components/rsvp-board";
 import { conditions } from "@/content/run";
@@ -77,6 +78,7 @@ export default function PlayerHome() {
 				</Blueprint>
 			</section>
 
+			<GymMoneyNotice />
 			<RsvpBoard />
 		</>
 	);

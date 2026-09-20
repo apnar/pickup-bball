@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { BreakForm, describeBreak } from "@/components/break-form";
 import SectionKicker from "@/components/section-kicker";
 import { authClient } from "@/lib/auth-client";
+import { describeContribution } from "@/lib/contributions";
 import { orpc } from "@/utils/orpc";
 
 export const Route = createFileRoute("/_auth/dashboard")({
@@ -133,6 +134,7 @@ function RouteComponent() {
 	const { session } = Route.useRouteContext();
 	const queryClient = useQueryClient();
 	const me = useQuery(orpc.people.me.queryOptions());
+	const money = useQuery(orpc.contributions.mine.queryOptions());
 	const [taking, setTaking] = useState(false);
 	const [resent, setResent] = useState(false);
 
@@ -253,6 +255,12 @@ function RouteComponent() {
 								onSubmit={(input) => takeBreak.mutate(input)}
 							/>
 						</dd>
+					) : null}
+					{money.data ? (
+						<>
+							<dt className="kicker text-steel-700">Gym money</dt>
+							<dd className="m-0">{describeContribution(money.data)}</dd>
+						</>
 					) : null}
 					<PasswordRow />
 					<dd className="col-span-2 m-0 text-[13px] text-neutral-600 leading-5">

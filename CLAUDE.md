@@ -143,6 +143,33 @@ file free of drizzle and `cloudflare:workers` — the web app bundles it.
   not write**. Mail clients prefetch link targets — the same reason
   `server/unsubscribe.ts` stopped acting on a GET.
 
+### Gym money
+
+`contribution_call` is one ask (subject, body, whole-dollar `amount`, one-line
+`instructions`); `contribution` is its ledger, one row per person billed, with
+`status` unpaid / paid / excused. `packages/db/src/contributions.ts` owns every
+read and write, and the pure `tally` / `tallyLine` there are what the admin
+page and the history show. Things that are easy to get wrong:
+
+- **The ledger is a snapshot** of `listRecipients(db, "active")` at send time,
+  never a live view of the roster. Reminders go to unpaid ∩ active, computed
+  the same way in the preview count and in `sendToList`'s `onlyPersonIds`, so
+  the number on the button is the number that gets mail.
+- **One open call at a time** (`closed_at IS NULL`). The router refuses in
+  words first; `contribution_call_open_uidx` is a partial unique index on the
+  *expression* `(closed_at is null)` for the double-click the words miss. It
+  cannot be on the column: NULLs are distinct in a unique index.
+- `sendCall` is read → decide → claim → send: the call and its ledger go in
+  (one `db.batch`, chunked twenty rows a statement for D1's parameter cap)
+  *before* the email leaves, and a send that never left discards the call.
+  The other order asks people for money nothing tracks. `send_id` points at
+  the `email_send` row, which stays the record of what went out.
+- `contributions.mine` is the only player read and returns the caller's own
+  row or null. Both emails link to `/dashboard`, a GET that writes nothing;
+  there is no "mark me paid" link and there never can be.
+- `packages/api/src/contributions-render.ts` reaches `siteUrl()`, so the web
+  app must not import it; stock copy reaches the page via `contributions.current`.
+
 ### The one-table people model
 
 `user` is simultaneously the roster, the mailing list and the accounts. A person
