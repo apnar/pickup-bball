@@ -11,6 +11,7 @@ pnpm install
 pnpm run dev              # dev server (pages + API) at http://localhost:3001
 pnpm run build            # vite build -> Worker bundle + assets
 pnpm run check            # biome check --write .  (format + lint + organize imports)
+pnpm exec biome ci .      # what CI runs; stricter than check (lints SVGs too)
 pnpm run check-types      # tsc --noEmit across the workspace
 pnpm run test             # vitest run in packages/db, packages/email, packages/api
 pnpm run deploy           # build + wrangler deploy
@@ -52,7 +53,11 @@ curl "http://localhost:3001/cdn-cgi/local/scheduled?cron=0+*+*+*+*"
 Local setup needs `apps/web/.dev.vars` (copy `.dev.vars.example`, set a random
 `BETTER_AUTH_SECRET`). Leave `BREVO_API_KEY` unset locally: the mailer then prints
 each email to the dev console with the placeholders filled in from the first
-recipient, so the sign-in link in the log is clickable.
+recipient, so the sign-in link in the log is clickable. If it *is* set (the
+maintainer's machine has the real key, and the local D1 holds the real
+roster), strip it and restart before exercising any send; check that
+`mail.status` reports `dryRun: true` first. A local "test" send is otherwise
+a real one to everybody.
 
 ## Architecture
 
@@ -210,7 +215,9 @@ rather than concrete URLs, and their output must never be run through
 ## Conventions
 
 - Biome: tabs, double quotes, `preset: recommended`, organize-imports on. Run
-  `pnpm run check` before finishing; CI runs `biome ci .`.
+  `pnpm run check` while working, and `pnpm exec biome ci .` before pushing:
+  that is what CI runs, and it is stricter -- it lints files `check` lets
+  through (an SVG in `public/` needs a `<title>`, for one).
 - TypeScript is strict with `noUncheckedIndexedAccess`, `noUnusedLocals` and
   `verbatimModuleSyntax` (use `import type`).
 - Imports: `@/*` inside `apps/web/src`, `@pickup-bball/<pkg>` across packages.
@@ -242,7 +249,7 @@ rather than concrete URLs, and their output must never be run through
   operational reason), not what the code does. Match that when editing.
 - **Commit and push straight to `main`.** No feature branches, no pull
   requests — one person maintains this and a review queue of one is just a
-  delay. Nothing else looks at the change before it ships, so `pnpm run check`,
+  delay. Nothing else looks at the change before it ships, so `pnpm exec biome ci .`,
   `pnpm run test` and a build are the gate; run them first.
 - Commit messages are a declarative sentence ("The roster is the people who
   actually play"), then prose about *why*, in the same voice as the code
