@@ -227,8 +227,15 @@ function AdminPeoplePage() {
 				</Blueprint>
 			</div>
 
+			{/*
+			 * The table has to fit the page at desktop widths: an overflow wrapper
+			 * scrolls silently, and nobody notices the buttons off the right edge.
+			 * So nothing in a row is nowrap except the timestamp -- the address
+			 * breaks anywhere, and the actions wrap to a second line. The wrapper
+			 * stays only for a phone, where six columns cannot fit whatever they do.
+			 */}
 			<div className="overflow-x-auto">
-				<table className="w-full min-w-[720px] border-collapse text-sm">
+				<table className="w-full min-w-[560px] border-collapse text-sm">
 					<thead>
 						<tr>
 							{["Name", "Email", "Role", "Status", "Link sent", ""].map(
@@ -252,10 +259,10 @@ function AdminPeoplePage() {
 									key={p.id}
 									className={`border-ink/8 border-b [&>td]:px-2 [&>td]:py-2 ${gone ? "text-neutral-500" : ""}`}
 								>
-									<td className="whitespace-nowrap font-heading font-semibold text-lg uppercase tracking-[0.02em]">
+									<td className="font-heading font-semibold text-lg uppercase leading-tight tracking-[0.02em]">
 										{p.name}
 									</td>
-									<td>{p.email}</td>
+									<td className="wrap-anywhere">{p.email}</td>
 									<td>
 										<span className={chip(admin ? "steel" : "neutral")}>
 											{admin ? "Admin" : "Player"}
@@ -286,91 +293,93 @@ function AdminPeoplePage() {
 									<td className="whitespace-nowrap text-[13px] text-neutral-700">
 										{p.linkSentAt ? when(p.linkSentAt) : "Never sent"}
 									</td>
-									<td className="whitespace-nowrap text-right">
-										{gone ? (
-											<Button
-												variant="ghost"
-												size="xs"
-												disabled={reactivate.isPending}
-												onClick={() => reactivate.mutate({ userId: p.id })}
-											>
-												Reactivate
-											</Button>
-										) : (
-											<>
+									<td className="text-right">
+										<div className="flex flex-wrap justify-end gap-x-1 gap-y-1">
+											{gone ? (
 												<Button
 													variant="ghost"
 													size="xs"
-													disabled={sendLink.isPending}
-													onClick={() => sendLink.mutate({ userId: p.id })}
+													disabled={reactivate.isPending}
+													onClick={() => reactivate.mutate({ userId: p.id })}
 												>
-													Send link
+													Reactivate
 												</Button>
-												{away ? (
+											) : (
+												<>
 													<Button
 														variant="ghost"
 														size="xs"
-														disabled={busy}
-														onClick={() => unsuspend.mutate({ userId: p.id })}
+														disabled={sendLink.isPending}
+														onClick={() => sendLink.mutate({ userId: p.id })}
 													>
-														They're back
+														Send link
 													</Button>
-												) : (
+													{away ? (
+														<Button
+															variant="ghost"
+															size="xs"
+															disabled={busy}
+															onClick={() => unsuspend.mutate({ userId: p.id })}
+														>
+															They're back
+														</Button>
+													) : (
+														<Button
+															variant="ghost"
+															size="xs"
+															onClick={() =>
+																setPausing(pausing === p.id ? null : p.id)
+															}
+														>
+															{pausing === p.id ? "Never mind" : "Break..."}
+														</Button>
+													)}
+													{nextGame && lastStage && !away ? (
+														<Button
+															variant="ghost"
+															size="xs"
+															disabled={resendCycle.isPending}
+															onClick={() =>
+																resendCycle.mutate({
+																	gameId: nextGame.id,
+																	stage: lastStage,
+																	personIds: [p.id],
+																})
+															}
+														>
+															Resend last email
+														</Button>
+													) : null}
 													<Button
 														variant="ghost"
 														size="xs"
+														disabled={isSelf || setRole.isPending}
 														onClick={() =>
-															setPausing(pausing === p.id ? null : p.id)
-														}
-													>
-														{pausing === p.id ? "Never mind" : "Break..."}
-													</Button>
-												)}
-												{nextGame && lastStage && !away ? (
-													<Button
-														variant="ghost"
-														size="xs"
-														disabled={resendCycle.isPending}
-														onClick={() =>
-															resendCycle.mutate({
-																gameId: nextGame.id,
-																stage: lastStage,
-																personIds: [p.id],
+															setRole.mutate({
+																userId: p.id,
+																role: admin ? "user" : "admin",
 															})
 														}
 													>
-														Resend last email
+														{admin ? "Remove admin" : "Make admin"}
 													</Button>
-												) : null}
-												<Button
-													variant="ghost"
-													size="xs"
-													disabled={isSelf || setRole.isPending}
-													onClick={() =>
-														setRole.mutate({
-															userId: p.id,
-															role: admin ? "user" : "admin",
-														})
-													}
-												>
-													{admin ? "Remove admin" : "Make admin"}
-												</Button>
-												<Button
-													variant={
-														confirmKey === killKey ? "destructive" : "ghost"
-													}
-													size="xs"
-													disabled={isSelf || deactivate.isPending}
-													onClick={() =>
-														setConfirmKey(
-															confirmKey === killKey ? null : killKey,
-														)
-													}
-												>
-													Deactivate...
-												</Button>
-											</>
-										)}
+													<Button
+														variant={
+															confirmKey === killKey ? "destructive" : "ghost"
+														}
+														size="xs"
+														disabled={isSelf || deactivate.isPending}
+														onClick={() =>
+															setConfirmKey(
+																confirmKey === killKey ? null : killKey,
+															)
+														}
+													>
+														Deactivate...
+													</Button>
+												</>
+											)}
+										</div>
 									</td>
 								</tr>
 							);
