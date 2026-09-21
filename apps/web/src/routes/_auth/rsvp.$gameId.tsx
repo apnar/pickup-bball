@@ -2,6 +2,7 @@ import { Blueprint } from "@pickup-bball/ui/components/blueprint";
 import { Button, buttonVariants } from "@pickup-bball/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 
@@ -43,10 +44,16 @@ const HEADING: Record<RsvpAnswer, string> = {
 	out: "Out. Recorded.",
 };
 
+/**
+ * The button says "confirm", not the answer again. When it read "Yes, I'm in"
+ * under a highlighted "I'm in" cell in the same steel, people took it for a
+ * label of what they had already done and left the page with nothing
+ * recorded.
+ */
 const CONFIRM: Record<RsvpAnswer, string> = {
-	in: "Yes, I'm in",
-	maybe: "Put me down as a maybe",
-	out: "I'm out",
+	in: "Confirm: I'm in",
+	maybe: "Confirm: maybe",
+	out: "Confirm: I'm out",
 };
 
 function RsvpConfirmPage() {
@@ -95,7 +102,7 @@ function RsvpConfirmPage() {
 						? HEADING[committed]
 						: locked
 							? "The count is closed."
-							: "One tap and you're on the sheet."
+							: "Pick, then tap confirm. That's the sheet."
 				}
 			/>
 
@@ -139,14 +146,20 @@ function RsvpConfirmPage() {
 						<>
 							<ResponsePicker
 								name="confirm-answer"
-								legend={mine ? `You said ${mine}. Change it?` : "Your answer"}
+								legend={
+									mine ? `1 · You said ${mine}. Change it?` : "1 · Your answer"
+								}
 								value={picked}
 								disabled={isPending}
 								onPick={setPicked}
+								pending
 							/>
+							<p className="kicker mt-6 mb-2 text-steel-700">
+								2 · Tap to record it
+							</p>
 							<Button
 								size="lg"
-								className="mt-4"
+								className="w-full sm:w-auto"
 								disabled={isPending || !picked}
 								onClick={async () => {
 									if (!picked) return;
@@ -158,12 +171,13 @@ function RsvpConfirmPage() {
 									}
 								}}
 							>
-								{picked ? CONFIRM[picked] : "Pick one"}
+								{picked ? CONFIRM[picked] : "Pick one first"}
+								<ArrowRight />
 							</Button>
-							<p className="mt-4 max-w-[52ch] text-[13px] text-neutral-700 leading-5">
-								Nothing is recorded yet. Mail apps click links on their own, and
-								one of them once took half the roster off the list. So you do
-								it.
+							<p className="mt-3 max-w-[52ch] text-[13px] text-neutral-700 leading-5">
+								Nothing is on the sheet until you tap that. Mail apps open links
+								on their own, and one of them once took half the roster off the
+								list. So the tap is yours.
 							</p>
 						</>
 					)}

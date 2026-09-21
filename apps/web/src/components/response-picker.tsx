@@ -9,6 +9,11 @@ import { ANSWERS } from "@/lib/rsvp";
  * free, and a `<fieldset disabled>` covers all three while a mutation is in
  * flight. The old cards used `aria-pressed`, which is a boolean and cannot say
  * "maybe" at all.
+ *
+ * `pending` is for the confirm page, where a pick is not yet an answer: the
+ * checked cell goes pale instead of solid steel, so the one solid-steel thing
+ * on that page is the button that actually records it. The dashboard writes
+ * on pick, so there the solid cell *is* the record and stays that way.
  */
 
 const BIG: Record<RsvpAnswer, string> = {
@@ -30,6 +35,7 @@ export function ResponsePicker({
 	disabled,
 	size = "large",
 	legend,
+	pending = false,
 }: {
 	/** Radio group name. Must be unique on the page. */
 	name: string;
@@ -38,8 +44,13 @@ export function ResponsePicker({
 	disabled?: boolean;
 	size?: "large" | "small";
 	legend: string;
+	/** The pick is provisional; something else records it. */
+	pending?: boolean;
 }) {
 	const large = size === "large";
+	const checked = pending
+		? "has-[:checked]:bg-steel-100 has-[:checked]:text-steel-900 has-[:checked]:shadow-[inset_0_0_0_2px_var(--color-steel)]"
+		: "has-[:checked]:bg-steel has-[:checked]:text-ground";
 	return (
 		<fieldset
 			disabled={disabled}
@@ -64,7 +75,7 @@ export function ResponsePicker({
 						key={answer}
 						className={
 							large
-								? "cursor-pointer border-divider border-l py-3 text-center font-heading font-semibold text-sm uppercase tracking-[0.02em] first:border-l-0 hover:bg-ink/5 has-[:checked]:bg-steel has-[:checked]:text-ground has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-steel has-[:focus-visible]:outline-offset-[-2px]"
+								? `cursor-pointer border-divider border-l py-3 text-center font-heading font-semibold text-sm uppercase tracking-[0.02em] first:border-l-0 hover:bg-ink/5 ${checked} has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-steel has-[:focus-visible]:outline-offset-[-2px]`
 								: "relative cursor-pointer border-current/25 border-l py-1.5 text-center font-semibold text-[11px] uppercase tracking-[0.08em] opacity-55 first:border-l-0 has-[:checked]:opacity-100 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-steel has-[:focus-visible]:outline-offset-[-2px] has-[:checked]:after:absolute has-[:checked]:after:inset-x-2 has-[:checked]:after:bottom-[3px] has-[:checked]:after:h-px has-[:checked]:after:bg-current"
 						}
 					>
