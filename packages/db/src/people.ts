@@ -144,6 +144,33 @@ export async function listPeople(
 	}));
 }
 
+/**
+ * Everybody still in the group and whether they are stepped away right now.
+ *
+ * The roster as the opening call finds it, which is what stage 01 writes down
+ * so that a break can still be told from silence months later. Wider than
+ * `listRecipients("active")` on purpose: the people on a break are the point.
+ */
+export async function listRosterState(
+	db: Db,
+	now: Date = new Date(),
+): Promise<{ id: string; onBreak: boolean }[]> {
+	const rows = await db
+		.select({
+			id: user.id,
+			status: user.status,
+			suspendedUntil: user.suspendedUntil,
+		})
+		.from(user)
+		.where(notDeactivated())
+		.orderBy(asc(user.createdAt))
+		.all();
+	return rows.map((row) => ({
+		id: row.id,
+		onBreak: effectiveStatus(row, now) === "suspended",
+	}));
+}
+
 export type Recipient = {
 	id: string;
 	email: string;

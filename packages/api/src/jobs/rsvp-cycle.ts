@@ -16,6 +16,7 @@ import { union } from "../audience";
 import type { Context } from "../context";
 import { CONFIRM_AT, PLAY_AT, STAGE, type StageKey } from "../cycle";
 import { findGame, type GameSummary } from "../games";
+import { recordInvites } from "../invites";
 import { type ListSendResult, permitUrl, readSplit, sendToList } from "../mail";
 import { addDays, todayInRunTimezone } from "../run";
 import { planStage, type Stamps } from "./plan";
@@ -263,6 +264,11 @@ async function runStage(
 				.set({ confirmedAt: now })
 				.where(and(eq(game.id, summary.id), isNull(game.confirmedAt)));
 		}
+		// Write down who is being asked, before the asking. This snapshot is
+		// the only record that survives of who was on the roster tonight and
+		// who was away -- `user` keeps one status and no history -- and the
+		// response rates on /admin/users are counted against it.
+		await recordInvites(db, summary.id, now);
 		const { rendered } = renderStage({
 			stage: "call",
 			game: summary,

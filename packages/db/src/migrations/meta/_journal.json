@@ -64,6 +64,13 @@
 			"when": 1789922103047,
 			"tag": "0008_contributions",
 			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "6",
+			"when": 1790081953344,
+			"tag": "0009_game_invite",
+			"breakpoints": true
 		}
 	]
 }

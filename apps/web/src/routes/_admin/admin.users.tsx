@@ -1,3 +1,7 @@
+import {
+	RESPONSE_WINDOW,
+	type ResponseRate,
+} from "@pickup-bball/api/responses";
 import { Blueprint } from "@pickup-bball/ui/components/blueprint";
 import { Button } from "@pickup-bball/ui/components/button";
 import { Input } from "@pickup-bball/ui/components/input";
@@ -37,6 +41,30 @@ function when(value: Date | string | null | undefined): string {
 		hour: "numeric",
 		minute: "2-digit",
 	});
+}
+
+/**
+ * How somebody has answered the last few calls to play, in the width of a
+ * table cell. Three counts over one denominator rather than three fractions:
+ * the numbers are all out of the same handful of runs, and repeating "/ 8"
+ * three times reads like three different measurements.
+ *
+ * `of` is how many of those runs this person was on the roster for, so a man
+ * added last week reads "of 1" and is not quietly accused of ignoring nine
+ * emails that were sent before he existed.
+ */
+function Record({ rate }: { rate: ResponseRate }) {
+	if (rate.of === 0) {
+		return <span className="text-neutral-500">Not asked yet</span>;
+	}
+	return (
+		<span className="tnum">
+			<strong className="font-semibold text-ink">{rate.yes}</strong> in ·{" "}
+			{rate.replied} replied
+			{rate.onBreak > 0 ? ` · ${rate.onBreak} away` : ""} ·{" "}
+			<span className="text-neutral-500">of {rate.of}</span>
+		</span>
+	);
 }
 
 /**
@@ -192,6 +220,15 @@ function AdminPeoplePage() {
 					signs them out everywhere and takes them off every email. Only an
 					admin can do that, or undo it.
 				</p>
+				<p className="mb-6 max-w-[64ch] text-[15px] text-neutral-700 leading-6">
+					<strong>Last {RESPONSE_WINDOW}</strong> is how each of them has
+					answered the last {RESPONSE_WINDOW} calls to play: how many they said
+					in to, how many they answered at all — out is an answer — and how many
+					they were away for. All three are out of the number after <em>of</em>,
+					which is how many of those calls they were on the list for: somebody
+					who joined last month has a shorter record, not a worse one. Runs from
+					before we started writing this down are not in it.
+				</p>
 				<Blueprint className="p-5">
 					<span className="kicker mb-3 block text-steel-700">Add someone</span>
 					<form
@@ -238,13 +275,19 @@ function AdminPeoplePage() {
 				<table className="w-full min-w-[560px] border-collapse text-sm">
 					<thead>
 						<tr>
-							{["Name", "Email", "Role", "Status", "Link sent", ""].map(
-								(h, i) => (
-									<th key={h || `col-${i}`} className={thClass}>
-										{h}
-									</th>
-								),
-							)}
+							{[
+								"Name",
+								"Email",
+								"Role",
+								"Status",
+								`Last ${RESPONSE_WINDOW}`,
+								"Link sent",
+								"",
+							].map((h, i) => (
+								<th key={h || `col-${i}`} className={thClass}>
+									{h}
+								</th>
+							))}
 						</tr>
 					</thead>
 					<tbody>
@@ -289,6 +332,9 @@ function AdminPeoplePage() {
 												via mail app
 											</span>
 										) : null}
+									</td>
+									<td className="text-[12px] text-neutral-700 leading-4">
+										<Record rate={p.responses} />
 									</td>
 									<td className="whitespace-nowrap text-[13px] text-neutral-700">
 										{p.linkSentAt ? when(p.linkSentAt) : "Never sent"}

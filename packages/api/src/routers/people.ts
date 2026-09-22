@@ -21,7 +21,9 @@ import { z } from "zod";
 
 import type { Context } from "../context";
 import { adminProcedure, protectedProcedure, publicProcedure } from "../index";
+import { readResponseRates } from "../invites";
 import { sendWelcome } from "../mail";
+import { NO_RESPONSES } from "../responses";
 import { formatGameDate, isAdmin, todayInRunTimezone } from "../run";
 
 const emailSchema = z.email("That is not an email address.").max(254);
@@ -118,7 +120,22 @@ export const peopleRouter = {
 			return { ok: true };
 		}),
 
-	list: adminProcedure.handler(({ context }) => listPeople(context.db)),
+	/**
+	 * Everybody, with the record of how they have answered the last few calls
+	 * to play hung off each row. Admin only, like the rest of `list`: how
+	 * often a man ignores his email is not something the roster page tells
+	 * the other players about him.
+	 */
+	list: adminProcedure.handler(async ({ context }) => {
+		const [people, rates] = await Promise.all([
+			listPeople(context.db),
+			readResponseRates(context.db),
+		]);
+		return people.map((person) => ({
+			...person,
+			responses: rates.get(person.id) ?? NO_RESPONSES,
+		}));
+	}),
 
 	/**
 	 * The roster, for players rather than admins: who is in the group and how

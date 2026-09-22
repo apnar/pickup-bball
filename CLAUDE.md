@@ -144,6 +144,15 @@ file free of drizzle and `cloudflare:workers` — the web app bundles it.
   instant with a two-pass offset fix. That second pass is what survives the
   week after a DST switch, when the evening-before call and the game itself sit
   on different offsets. Tested; do not "simplify" it to one pass.
+- **Stage 01 snapshots the roster** into `game_invite` before the ask goes
+  out -- one row per person still in the group, `on_break` for the ones it
+  skipped. `user` keeps one status and no history, so this is the only thing
+  that can still tell a break from silence months later, and the "Last 10"
+  column on /admin/users counts against it (`api/src/responses.ts` for the
+  arithmetic, `api/src/invites.ts` for the reading and writing). The insert is
+  `on conflict do nothing`: a send Brevo rejects outright gives the stage back
+  and the next pass comes through again. A game whose call never went out has
+  no rows, which is right -- nobody was asked, so nobody's record moves.
 - Every link in a cycle email lands on `/rsvp/$gameId`, which **reads and does
   not write**. Mail clients prefetch link targets — the same reason
   `server/unsubscribe.ts` stopped acting on a GET.
