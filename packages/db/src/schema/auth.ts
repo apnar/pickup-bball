@@ -95,6 +95,20 @@ export const user = sqliteTable(
 	(table) => [index("user_status_idx").on(table.status)],
 );
 
+/**
+ * Better Auth's rate-limit counters. The default store is the isolate's
+ * memory, which on Workers is a different, short-lived bucket on every edge
+ * node -- no limit at all in practice. Backing it with D1 makes the counts
+ * real for the password door, the reset form and the link endpoint. Field
+ * names are the plugin's, so the adapter needs no mapping.
+ */
+export const rateLimit = sqliteTable("rate_limit", {
+	id: text("id").primaryKey(),
+	key: text("key").notNull().unique(),
+	count: integer("count").notNull(),
+	lastRequest: integer("last_request").notNull(),
+});
+
 export const session = sqliteTable(
 	"session",
 	{

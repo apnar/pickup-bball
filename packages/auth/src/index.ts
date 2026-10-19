@@ -85,6 +85,22 @@ export function createAuth() {
 			// to show up.
 			cookieCache: { enabled: true, maxAge: 5 * 60 },
 		},
+		rateLimit: {
+			// D1, not memory: a Worker isolate's memory is a fresh bucket on
+			// every edge node, so the default limiter never actually refused
+			// anything. The counts live in `rate_limit` (schema/auth.ts).
+			storage: "database",
+			modelName: "rateLimit",
+		},
+		advanced: {
+			ipAddress: {
+				// The one header Cloudflare sets and a client cannot forge. Without
+				// it Better Auth cannot find an address and falls back to a single
+				// bucket shared by everybody, which is a denial of service waiting
+				// for one impatient script.
+				ipAddressHeaders: ["cf-connecting-ip"],
+			},
+		},
 		secret: env.BETTER_AUTH_SECRET,
 		baseURL: env.BETTER_AUTH_URL,
 		plugins: [

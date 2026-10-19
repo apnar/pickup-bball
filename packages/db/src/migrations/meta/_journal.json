@@ -71,6 +71,13 @@
 			"when": 1790081953344,
 			"tag": "0009_game_invite",
 			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "6",
+			"when": 1792428295325,
+			"tag": "0010_rate_limit",
+			"breakpoints": true
 		}
 	]
 }
