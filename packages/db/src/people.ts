@@ -38,6 +38,7 @@ export type PersonState = {
 	id: string;
 	email: string;
 	name: string;
+	role: string | null;
 	status: PersonStatus;
 	suspendedUntil: Date | null;
 	statusReason: string | null;
@@ -203,6 +204,7 @@ export type LinkPerson = {
 	id: string;
 	email: string;
 	name: string;
+	role: string | null;
 	emailVerified: boolean;
 	status: PersonStatus;
 	suspendedUntil: Date | null;
@@ -219,6 +221,7 @@ export async function findPersonByLinkToken(
 			id: user.id,
 			email: user.email,
 			name: user.name,
+			role: user.role,
 			emailVerified: user.emailVerified,
 			status: user.status,
 			suspendedUntil: user.suspendedUntil,
@@ -230,7 +233,12 @@ export async function findPersonByLinkToken(
 	return row ?? null;
 }
 
-/** Somebody's own state, for the dashboard and the RSVP board. */
+/**
+ * Somebody's own state, for the dashboard, the RSVP board and the API gate.
+ * Read from D1 on purpose: the session cookie carries a copy of the user for
+ * five minutes, and a copy is the wrong thing to ask whether somebody was
+ * deactivated or demoted a minute ago.
+ */
 export async function findPersonState(
 	db: Db,
 	userId: string,
@@ -240,6 +248,7 @@ export async function findPersonState(
 			id: user.id,
 			email: user.email,
 			name: user.name,
+			role: user.role,
 			status: user.status,
 			suspendedUntil: user.suspendedUntil,
 			statusReason: user.statusReason,
@@ -292,6 +301,17 @@ export async function ensureUnsubscribeToken(
 	if (row?.unsubscribeToken) return row.unsubscribeToken;
 	const token = newToken();
 	await db.update(user).set({ unsubscribeToken: token }).where(eq(user.id, id));
+	return token;
+}
+
+/**
+ * A new sign-in token, and the old one dead. For a forwarded email or a
+ * leaked log: every link in every email this person was ever sent stops
+ * working, and the next welcome email carries the replacement.
+ */
+export async function rotateLinkToken(db: Db, id: string): Promise<string> {
+	const token = newToken();
+	await db.update(user).set({ linkToken: token }).where(eq(user.id, id));
 	return token;
 }
 

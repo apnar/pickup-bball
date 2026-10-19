@@ -9,6 +9,7 @@ import {
 	listPeople,
 	notDeactivated,
 	reactivate,
+	rotateLinkToken,
 	suspend,
 	unsuspend,
 } from "@pickup-bball/db/people";
@@ -16,6 +17,7 @@ import { user } from "@pickup-bball/db/schema/auth";
 import { game } from "@pickup-bball/db/schema/game";
 import { rsvp } from "@pickup-bball/db/schema/rsvp";
 import { getMailer } from "@pickup-bball/email/worker";
+import { waitUntil } from "@pickup-bball/env/server";
 import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -27,7 +29,11 @@ import { NO_RESPONSES } from "../responses";
 import { formatGameDate, isAdmin, todayInRunTimezone } from "../run";
 
 const emailSchema = z.email("That is not an email address.").max(254);
-const nameSchema = z.string().trim().max(40, "Shorter name, please.");
+const nameSchema = z
+	.string()
+	.trim()
+	.max(40, "Shorter name, please.")
+	.refine((v) => !/[{}]/.test(v), "Names don't have braces in them.");
 /** Short on purpose: this is "torn calf, back in a month", not a letter. */
 const reasonSchema = z.string().trim().max(200, "Keep it short.").optional();
 
@@ -249,6 +255,30 @@ export const peopleRouter = {
 		}),
 
 	/**
+	 * Kill every link this person was ever emailed and send them a new one.
+	 * For a forwarded email or a leaked log: the token is a bearer credential,
+	 * and until now the only way to revoke one was SQL. Admin only.
+	 */
+	rotateLink: adminProcedure
+		.input(z.object({ userId: z.string().min(1) }))
+		.handler(async ({ context, input }) => {
+			const state = await requirePerson(context.db, input.userId);
+			if (state.status === "deactivated") {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "They are deactivated. Their links are already dead.",
+				});
+			}
+			await rotateLinkToken(context.db, state.id);
+			const outcome = await sendWelcome(context.db, state.id, state);
+			if (!outcome.ok) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: `Old link is dead. New one did not send: ${outcome.error}`,
+				});
+			}
+			return { ok: true, dryRun: getMailer().dryRun };
+		}),
+
+	/**
 	 * Out of the group: no email of any kind, no way in, every session killed.
 	 * Admin only, and the only thing that sets Better Auth's `banned`, which is
 	 * what closes the password door.
@@ -296,10 +326,17 @@ export const peopleRouter = {
 			const cooledOff =
 				!row?.linkSentAt || Date.now() - row.linkSentAt.getTime() > 10 * 60_000;
 			if (row && cooledOff) {
-				await sendWelcome(context.db, row.id, {
-					email: input.email,
-					name: null,
-				});
+				// Not awaited. The words are the same for every address, but a
+				// response that waited on Brevo only for the ones on the list
+				// said in milliseconds what the words would not.
+				waitUntil(
+					sendWelcome(context.db, row.id, {
+						email: input.email,
+						name: null,
+					}).then((outcome) => {
+						if (!outcome.ok) console.error("link request failed", outcome);
+					}),
+				);
 			}
 			return { ok: true };
 		}),

@@ -120,6 +120,19 @@ function AdminPeoplePage() {
 			onError,
 		}),
 	);
+	const rotateLink = useMutation(
+		orpc.people.rotateLink.mutationOptions({
+			onSuccess: (result) => {
+				toast.success(
+					result.dryRun
+						? "Old links are dead. New one printed to the server log."
+						: "Old links are dead. New one sent.",
+				);
+				refresh();
+			},
+			onError,
+		}),
+	);
 	const suspend = useMutation(
 		orpc.people.suspend.mutationOptions({
 			onSuccess: () => {
@@ -359,6 +372,15 @@ function AdminPeoplePage() {
 														onClick={() => sendLink.mutate({ userId: p.id })}
 													>
 														Send link
+													</Button>
+													<Button
+														variant="ghost"
+														size="xs"
+														disabled={rotateLink.isPending}
+														title="Kills every link they were ever emailed and sends a fresh one. For a forwarded email."
+														onClick={() => rotateLink.mutate({ userId: p.id })}
+													>
+														New link
 													</Button>
 													{away ? (
 														<Button
