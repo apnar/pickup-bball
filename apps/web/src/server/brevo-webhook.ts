@@ -30,11 +30,31 @@ const DROP_EVENTS = new Map([
 
 type BrevoEvent = { event?: string; email?: string; reason?: string };
 
+/**
+ * Constant-time comparison. A `!==` on a secret returns the moment the first
+ * byte differs, and the Worker's response time would say how many bytes a
+ * guess got right. Every byte is visited whatever the input; the length is
+ * the one thing this gives away, and the length is not the secret. Written
+ * out rather than `crypto.subtle.timingSafeEqual` because the Workers types
+ * this repo pins do not declare it.
+ */
+function sameSecret(given: string, expected: string): boolean {
+	const a = new TextEncoder().encode(given);
+	const b = new TextEncoder().encode(expected);
+	let diff = a.byteLength ^ b.byteLength;
+	for (let i = 0; i < b.byteLength; i++) {
+		diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
+	}
+	return diff === 0;
+}
+
 brevoWebhook.post("/", async (c) => {
 	const secret = env.BREVO_WEBHOOK_SECRET;
 	if (!secret) return c.text("Not found.", 404);
 	const auth = c.req.header("authorization") ?? "";
-	if (auth !== `Bearer ${secret}`) return c.text("Forbidden.", 403);
+	if (!sameSecret(auth, `Bearer ${secret}`)) {
+		return c.text("Forbidden.", 403);
+	}
 
 	let payload: unknown;
 	try {
