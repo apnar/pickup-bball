@@ -21,7 +21,11 @@ const nameSchema = z
 	.string()
 	.trim()
 	.min(1, "Put a name in.")
-	.max(40, "That is not a name, that is a paragraph.");
+	.max(40, "That is not a name, that is a paragraph.")
+	// Braces are Brevo's template syntax, and a name is the one thing on the
+	// sheet a player types that ends up in everybody's email. The mailer
+	// neutralises them anyway; this just says no at the box.
+	.refine((v) => !/[{}]/.test(v), "Names don't have braces in them.");
 
 const answerSchema = z.enum(RSVP_RESPONSES);
 

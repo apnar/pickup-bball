@@ -9,6 +9,7 @@ import {
 	type SendOutcome,
 	unblockContact,
 } from "./brevo";
+import { sealTemplate } from "./render";
 
 /** Someone on the list, with the link that takes them off it. */
 export type ListRecipient = {
@@ -72,13 +73,15 @@ export function createMailer(options: MailerOptions): Mailer {
 	const apiKey = options.apiKey?.trim();
 	const dryRun = !apiKey;
 
+	// Sealed here, at the last door out, so no template can forget to. See
+	// `sealTemplate` for why a guest's name needs it.
 	function base(rendered: Rendered, tags?: string[]): BrevoRequest {
 		return {
 			sender: options.sender,
 			replyTo: options.replyTo,
-			subject: rendered.subject,
-			htmlContent: rendered.html,
-			textContent: rendered.text,
+			subject: sealTemplate(rendered.subject),
+			htmlContent: sealTemplate(rendered.html),
+			textContent: sealTemplate(rendered.text),
 			tags,
 		};
 	}

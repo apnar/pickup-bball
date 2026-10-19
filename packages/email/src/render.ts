@@ -25,6 +25,34 @@ export const PARAM = {
 	key: "{{ params.key }}",
 } as const;
 
+/**
+ * Brevo runs its template language over the whole body whenever a request
+ * carries `params`, which every list email does. That is how the three
+ * placeholders above get filled, and also how a guest called `{% if %}` gets
+ * the whole send rejected -- and the cycle then retries it every half hour.
+ * This puts a zero-width space after any `{` that opens a tag, everywhere
+ * except inside our own placeholders, so what a person typed renders as they
+ * typed it and means nothing to Brevo. Runs last, over the finished email,
+ * which is the one place that can tell our braces from theirs.
+ */
+export function sealTemplate(input: string): string {
+	const keep = Object.values(PARAM)
+		.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+		.join("|");
+	const placeholders = new RegExp(keep, "g");
+	let out = "";
+	let last = 0;
+	for (const match of input.matchAll(placeholders)) {
+		out += neutralize(input.slice(last, match.index)) + match[0];
+		last = match.index + match[0].length;
+	}
+	return out + neutralize(input.slice(last));
+}
+
+function neutralize(text: string): string {
+	return text.replace(/\{(?=[{%#])/g, "{\u200b");
+}
+
 const FONT =
 	"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;";
 
