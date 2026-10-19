@@ -54,6 +54,18 @@ app.use(async (c, next) => {
 	);
 });
 
+/**
+ * Two admin-plugin endpoints the site never calls and should not have. One
+ * signs an admin in as anybody; the other sets anybody's password. Either is
+ * a stolen admin cookie turned into every account on the list, so they are
+ * closed here, before Better Auth ever sees them.
+ */
+app.on(
+	["GET", "POST"],
+	["/auth/admin/impersonate-user", "/auth/admin/set-user-password"],
+	(c) => c.text("Not found.", 404),
+);
+
 app.on(["GET", "POST"], "/auth/*", (c) => createAuth().handler(c.req.raw));
 
 app.all("/rpc/*", async (c, next) => {
@@ -96,6 +108,11 @@ app.get("/permits/:id/file", async (c) => {
 	headers.set("etag", object.httpEtag);
 	headers.set("cache-control", "public, max-age=3600");
 	headers.set("content-disposition", `${disposition}; filename="${safeName}"`);
+	// A PDF is the only thing this ever serves, and a PDF viewer is the only
+	// thing that should run anything in it. `sandbox` keeps a PDF that is
+	// secretly something else from running as this origin.
+	headers.set("x-content-type-options", "nosniff");
+	headers.set("content-security-policy", "sandbox");
 	return new Response(object.body, { headers });
 });
 

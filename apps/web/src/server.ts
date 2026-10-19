@@ -15,6 +15,29 @@ import handler, { createServerEntry } from "@tanstack/react-start/server-entry";
  */
 const canonical = new URL(env.BETTER_AUTH_URL);
 
+/**
+ * Headers every response carries. No Content-Security-Policy yet: the
+ * hydration script is inline and would need a nonce threaded through the
+ * TanStack shell, and a report-only policy with nowhere to report to is a
+ * header that does nothing.
+ */
+function harden(response: Response): Response {
+	const out = new Response(response.body, response);
+	const h = out.headers;
+	if (canonical.protocol === "https:") {
+		h.set("strict-transport-security", "max-age=31536000; includeSubDomains");
+	}
+	h.set("x-content-type-options", "nosniff");
+	// Sign-in links drop people on pages whose URL is theirs alone; the origin
+	// is all another site ever learns about where they came from.
+	h.set("referrer-policy", "strict-origin-when-cross-origin");
+	// Nothing here is meant to be framed, least of all the sheet.
+	h.set("x-frame-options", "DENY");
+	h.set("content-security-policy", "frame-ancestors 'none'");
+	h.set("permissions-policy", "camera=(), microphone=(), geolocation=()");
+	return out;
+}
+
 const entry = createServerEntry({
 	async fetch(request, requestOpts) {
 		const url = new URL(request.url);
@@ -23,7 +46,7 @@ const entry = createServerEntry({
 			url.host = canonical.host;
 			return Response.redirect(url.toString(), 301);
 		}
-		return handler.fetch(request, requestOpts);
+		return harden(await handler.fetch(request, requestOpts));
 	},
 });
 
