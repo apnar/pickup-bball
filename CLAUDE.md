@@ -213,13 +213,35 @@ place that decides what that means. Things that are easy to get wrong:
 one on a URL meant to be shown around (the permit PDF URL deliberately carries
 nothing), and never hand it to Better Auth as an additional user field — those get
 base64'd into a browser-readable cookie. `safeReturnPath` sanitizes `to`.
+Because it rides in the query string, **nothing may log a full URL**: the
+request logger in `server/app.ts` prints the path only. Admins never sign in
+by link (`link.ts` sends them to `/login?error=admin`); `people.rotateLink`
+is how a leaked token dies.
+
+The RPC handler runs `StrictGetMethodPlugin`: every procedure is POST-only,
+because the RPC protocol would otherwise accept GET with the input in `?data=`
+and the Lax session cookie rides along on a top-level GET. Do not declare a
+procedure `GET` to get around it. There is no OpenAPI handler on purpose.
+
+`requireAuth` / `requireAdmin` in `packages/api/src/index.ts` re-read the
+person's row on every call and put it in context as `person`; the cookie's
+copy of the user is five minutes stale and must not decide status or role.
+Better Auth's rate limiter stores its counts in D1 (`rate_limit`), keyed by
+`cf-connecting-ip`; the memory default is a per-isolate bucket and limits
+nothing on Workers.
 
 List sends go through `packages/api/src/mail.ts` → `Mailer.sendList`, which
 batches up to 99 personalised copies per Brevo request using `messageVersions`;
 templates therefore contain the `PARAM` placeholders from
 `packages/email/src/render.ts` (`{{ params.key }}`, `{{ params.unsubscribeUrl }}`)
 rather than concrete URLs, and their output must never be run through
-`escapeHtml`. Every list send writes one `email_send` row. Announcement and reminder always go to the `active` audience only.
+`escapeHtml`. Those `params` switch on Brevo's template language over the whole
+body, so anything a person typed (a guest's name, a note) is a template
+injection until `sealTemplate` in the mailer puts a zero-width space after
+every `{` that opens a tag — everywhere except our own placeholders. It runs
+in `createMailer`'s `base()`, the last door out; keep it there rather than in
+templates, where one of them would forget. Every list send writes one
+`email_send` row. Announcement and reminder always go to the `active` audience only.
 
 ## Conventions
 
