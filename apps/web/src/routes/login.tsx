@@ -81,6 +81,11 @@ function RouteComponent() {
 					form below.
 				</p>
 			) : null}
+			{error === "admin" ? (
+				<p className="mx-auto mb-6 w-full max-w-md border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 leading-5">
+					Admins sign in with a password, not a link. The form below is yours.
+				</p>
+			) : null}
 			{error === "revoked" ? (
 				<p className="mx-auto mb-6 w-full max-w-md border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-900 leading-5">
 					That account is deactivated, so its links no longer work. If that is

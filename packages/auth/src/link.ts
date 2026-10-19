@@ -49,6 +49,13 @@ export function emailLink({ db }: { db: Db }) {
 						throw ctx.redirect(`${site}/login?error=revoked`);
 					}
 
+					// An admin's token would be the whole site sitting in every
+					// email they get, one forward away from a stranger. Admins have
+					// passwords; the link takes them to the form instead.
+					if (person.role === "admin") {
+						throw ctx.redirect(`${site}/login?error=admin`);
+					}
+
 					// The token proved who they are; the session needs Better
 					// Auth's own shape of them, which only its adapter builds.
 					const found = await ctx.context.internalAdapter.findUserByEmail(
