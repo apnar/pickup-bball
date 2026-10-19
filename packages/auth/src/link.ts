@@ -1,5 +1,5 @@
 import type { createDb } from "@pickup-bball/db";
-import { findPersonByLinkToken } from "@pickup-bball/db/people";
+import { findPersonByLinkToken, hasPassword } from "@pickup-bball/db/people";
 import { safeReturnPath } from "@pickup-bball/email";
 import type { BetterAuthPlugin } from "better-auth";
 import { createAuthEndpoint } from "better-auth/api";
@@ -49,10 +49,13 @@ export function emailLink({ db }: { db: Db }) {
 						throw ctx.redirect(`${site}/login?error=revoked`);
 					}
 
-					// An admin's token would be the whole site sitting in every
-					// email they get, one forward away from a stranger. Admins have
-					// passwords; the link takes them to the form instead.
-					if (person.role === "admin") {
+					// An admin's token is the whole site sitting in every email they
+					// get, one forward away from a stranger. Once an admin has a
+					// password the link stops being a door and points at the form.
+					// Until then it has to keep working -- it is the only way they
+					// have in, and the first admin on a fresh database arrives this
+					// way -- and setting a password on /dashboard is what closes it.
+					if (person.role === "admin" && (await hasPassword(db, person.id))) {
 						throw ctx.redirect(`${site}/login?error=admin`);
 					}
 

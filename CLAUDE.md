@@ -214,9 +214,10 @@ one on a URL meant to be shown around (the permit PDF URL deliberately carries
 nothing), and never hand it to Better Auth as an additional user field — those get
 base64'd into a browser-readable cookie. `safeReturnPath` sanitizes `to`.
 Because it rides in the query string, **nothing may log a full URL**: the
-request logger in `server/app.ts` prints the path only. Admins never sign in
-by link (`link.ts` sends them to `/login?error=admin`); `people.rotateLink`
-is how a leaked token dies.
+request logger in `server/app.ts` prints the path only. An admin who has
+set a password never signs in by link (`link.ts` sends them to
+`/login?error=admin`; one without a password still can, or the first admin
+could never get in); `people.rotateLink` is how a leaked token dies.
 
 The RPC handler runs `StrictGetMethodPlugin`: every procedure is POST-only,
 because the RPC protocol would otherwise accept GET with the input in `?data=`

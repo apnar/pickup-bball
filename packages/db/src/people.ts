@@ -13,6 +13,7 @@ import {
 
 import type { createDb } from "./index";
 import {
+	account,
 	type PersonSource,
 	type PersonStatus,
 	type StatusActor,
@@ -302,6 +303,26 @@ export async function ensureUnsubscribeToken(
 	const token = newToken();
 	await db.update(user).set({ unsubscribeToken: token }).where(eq(user.id, id));
 	return token;
+}
+
+/**
+ * Whether this person can sign in with a password at all. Asked of the
+ * `account` table directly: Better Auth's own listing strips the password,
+ * and a credential row can exist without one.
+ */
+export async function hasPassword(db: Db, userId: string): Promise<boolean> {
+	const row = await db
+		.select({ id: account.id })
+		.from(account)
+		.where(
+			and(
+				eq(account.userId, userId),
+				eq(account.providerId, "credential"),
+				isNotNull(account.password),
+			),
+		)
+		.get();
+	return Boolean(row);
 }
 
 /**

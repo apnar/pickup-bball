@@ -1,8 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { createAuth } from "@pickup-bball/auth";
 import { APIError } from "@pickup-bball/auth/errors";
-import { account } from "@pickup-bball/db/schema/auth";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { hasPassword } from "@pickup-bball/db/people";
 import { z } from "zod";
 
 import { protectedProcedure } from "../index";
@@ -12,25 +11,10 @@ import { protectedProcedure } from "../index";
  * the way most people get in, and they keep working either way.
  */
 export const accountRouter = {
-	/**
-	 * Whether the caller has a password at all. Asked of the `account` table
-	 * directly: `listUserAccounts` strips the password, and a credential row
-	 * can exist without one.
-	 */
-	hasPassword: protectedProcedure.handler(async ({ context }) => {
-		const row = await context.db
-			.select({ id: account.id })
-			.from(account)
-			.where(
-				and(
-					eq(account.userId, context.session.user.id),
-					eq(account.providerId, "credential"),
-					isNotNull(account.password),
-				),
-			)
-			.get();
-		return { hasPassword: Boolean(row) };
-	}),
+	/** Whether the caller has a password at all. */
+	hasPassword: protectedProcedure.handler(async ({ context }) => ({
+		hasPassword: await hasPassword(context.db, context.session.user.id),
+	})),
 
 	/** Set a first password. Changing an existing one goes through the client. */
 	setPassword: protectedProcedure
